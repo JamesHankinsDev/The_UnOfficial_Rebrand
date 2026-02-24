@@ -1,26 +1,119 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --color-brand-black: #0a0a0f;
+  --color-brand-dark: #111118;
+  --color-brand-border: #1e1e2a;
+  --color-brand-gold: #fbbf24;
+  --color-brand-orange: #f97316;
+  --color-brand-green: #10b981;
+  --color-brand-gray: #8a8a94;
+  --color-brand-muted: #5a5a64;
+  --color-brand-dim: #3a3a44;
+  --color-brand-white: #e8e6e3;
+
+  --font-mono: 'Space Mono', monospace;
+  --font-sans: 'DM Sans', sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background-color: #0a0a0f;
+  color: #e8e6e3;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'DM Sans', sans-serif;
+  background-color: #0a0a0f;
+  color: #e8e6e3;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tiptap editor styles */
+.ProseMirror {
+  outline: none;
+  min-height: 400px;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: #5a5a64;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3,
+.ProseMirror h4 {
+  font-family: 'Space Mono', monospace;
+  color: #e8e6e3;
+}
+
+.ProseMirror a {
+  color: #fbbf24;
+  text-decoration: underline;
+}
+
+.ProseMirror blockquote {
+  border-left: 4px solid #fbbf24;
+  padding-left: 1rem;
+  color: #8a8a94;
+  font-style: italic;
+}
+
+.ProseMirror code {
+  background: #1e1e2a;
+  color: #fbbf24;
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.ProseMirror pre {
+  background: #111118;
+  border: 1px solid #1e1e2a;
+  padding: 1rem;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.ProseMirror pre code {
+  background: none;
+  color: #e8e6e3;
+  padding: 0;
+}
+
+.ProseMirror img {
+  max-width: 100%;
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+
+/* Scrollbar styles */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #111118;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3a3a44;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #5a5a64;
 }

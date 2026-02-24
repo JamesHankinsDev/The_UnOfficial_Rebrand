@@ -1,7 +1,28 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  /* config options here */
-};
+  images: {
+    remotePatterns: [
+      {
+        // Firebase Storage
+        protocol: 'https',
+        hostname: 'firebasestorage.googleapis.com',
+        pathname: '/**',
+      },
+      {
+        // Shopify CDN
+        protocol: 'https',
+        hostname: '*.shopify.com',
+        pathname: '/**',
+      },
+      {
+        // Shopify CDN (CDN.shopify.com)
+        protocol: 'https',
+        hostname: 'cdn.shopify.com',
+        pathname: '/**',
+      },
+    ],
+  },
+}
 
-export default nextConfig;
+export default nextConfig

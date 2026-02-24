@@ -1,0 +1,81 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function getUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isWriter() {
+      return isSignedIn() && (getUser().role == 'writer' || getUser().role == 'admin');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (getUser().role == 'admin' || getUser().role == 'owner');
+    }
+
+    // /users/{uid}
+    // - Authenticated users can read their own doc
+    // - Admins can read all user docs
+    // - Writes happen server-side (registration flow)
+    match /users/{uid} {
+      allow read: if request.auth.uid == uid || isAdmin();
+      allow create: if request.auth.uid == uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // /articles/{articleId}
+    // - Published articles are publicly readable
+    // - Writers can CRUD their own articles
+    // - Admins can CRUD all articles
+    match /articles/{articleId} {
+      allow read: if resource.data.status == 'published'
+                  || resource.data.status == 'scheduled'
+                  || (isWriter() && resource.data.authorId == request.auth.uid)
+                  || isAdmin();
+
+      allow create: if (isWriter() && request.resource.data.authorId == request.auth.uid)
+                    || isAdmin();
+
+      allow update: if (isWriter() && resource.data.authorId == request.auth.uid)
+                    || isAdmin();
+
+      allow delete: if (isWriter() && resource.data.authorId == request.auth.uid)
+                    || isAdmin();
+    }
+
+    // /invites/{inviteId}
+    // - Only admins can create invites
+    // - Anyone can read a single invite by ID (for registration validation)
+    // - Only admins can update/delete invites
+    match /invites/{inviteId} {
+      allow read: if true; // Public read for invite validation
+      allow create: if isAdmin();
+      allow update: if isAdmin()
+                    || (isSignedIn() && resource.data.used == false); // Allow marking as used during registration
+      allow delete: if isAdmin();
+    }
+
+    // /posts/{postId} (V1 legacy collection — read-only for migration)
+    match /posts/{postId} {
+      allow read: if isAdmin();
+    }
+
+    // /subscribers/{subscriberId}
+    // - Anyone can create or update (subscribe / re-subscribe)
+    //   Document IDs are derived from the email, so a write only affects that email's doc.
+    // - Only admins can read/list or delete
+    match /subscribers/{subscriberId} {
+      allow create, update: if true; // Public — anyone can subscribe
+      allow read: if isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}
