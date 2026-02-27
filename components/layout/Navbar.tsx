@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { useCart } from '@/hooks/useCart'
 import { logout } from '@/lib/auth'
 
 const navLinks = [
@@ -16,6 +17,7 @@ const navLinks = [
 export function Navbar() {
   const pathname = usePathname()
   const { user, role } = useAuth()
+  const { openCart, totalQuantity } = useCart()
   const [menuOpen, setMenuOpen] = useState(false)
 
   const handleLogout = async () => {
@@ -62,8 +64,23 @@ export function Navbar() {
             ))}
           </div>
 
-          {/* Auth actions */}
+          {/* Cart + Auth actions */}
           <div className="hidden md:flex items-center gap-3">
+            <button
+              onClick={openCart}
+              className="relative text-[#8a8a94] hover:text-[#fbbf24] transition-colors p-2"
+              aria-label="Open cart"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+              </svg>
+              {totalQuantity > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-[#fbbf24] text-[#0a0a0f] text-[10px] font-mono font-bold w-[18px] h-[18px] flex items-center justify-center rounded-full">
+                  {totalQuantity > 9 ? '9+' : totalQuantity}
+                </span>
+              )}
+            </button>
             {user && (role === 'writer' || role === 'admin') ? (
               <>
                 <Link
@@ -89,9 +106,25 @@ export function Navbar() {
             )}
           </div>
 
-          {/* Mobile menu button */}
+          {/* Mobile cart + menu buttons */}
+          <div className="flex md:hidden items-center gap-1">
+            <button
+              onClick={openCart}
+              className="relative text-[#8a8a94] hover:text-[#fbbf24] transition-colors p-2"
+              aria-label="Open cart"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+              </svg>
+              {totalQuantity > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-[#fbbf24] text-[#0a0a0f] text-[10px] font-mono font-bold w-[18px] h-[18px] flex items-center justify-center rounded-full">
+                  {totalQuantity > 9 ? '9+' : totalQuantity}
+                </span>
+              )}
+            </button>
           <button
-            className="md:hidden text-[#8a8a94] hover:text-[#e8e6e3] p-2"
+            className="text-[#8a8a94] hover:text-[#e8e6e3] p-2"
             onClick={() => setMenuOpen(!menuOpen)}
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -102,6 +135,7 @@ export function Navbar() {
               )}
             </svg>
           </button>
+          </div>
         </div>
 
         {/* Mobile menu */}

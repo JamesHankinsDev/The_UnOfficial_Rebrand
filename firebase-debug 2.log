@@ -1,0 +1,15 @@
+[debug] [2026-02-24T19:55:53.139Z] ----------------------------------------------------------------------
+[debug] [2026-02-24T19:55:53.140Z] Command:       /Users/jameshankins/.nvm/versions/node/v24.11.1/bin/node /Users/jameshankins/.nvm/versions/node/v24.11.1/bin/firebase use the-unofficial-758da
+[debug] [2026-02-24T19:55:53.140Z] CLI Version:   15.7.0
+[debug] [2026-02-24T19:55:53.140Z] Platform:      darwin
+[debug] [2026-02-24T19:55:53.140Z] Node Version:  v24.11.1
+[debug] [2026-02-24T19:55:53.140Z] Time:          Tue Feb 24 2026 14:55:53 GMT-0500 (Eastern Standard Time)
+[debug] [2026-02-24T19:55:53.140Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-02-24T19:55:53.141Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-02-24T19:55:53.152Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-24T19:55:53.152Z] > authorizing via signed-in user (hankins.jamesb@gmail.com)
+[error] 
+[error] Error: firebase use must be run from a Firebase project directory.
+
+Run firebase init to start a project directory in the current folder.

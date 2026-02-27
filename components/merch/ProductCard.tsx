@@ -2,7 +2,9 @@
 
 import React, { useState } from 'react'
 import Image from 'next/image'
-import { ShopifyProduct, ShopifyVariant, buildCheckoutUrl } from '@/lib/shopify'
+import toast from 'react-hot-toast'
+import { ShopifyProduct, ShopifyVariant } from '@/lib/shopify'
+import { useCart } from '@/hooks/useCart'
 
 interface ProductCardProps {
   product: ShopifyProduct
@@ -11,6 +13,7 @@ interface ProductCardProps {
 export function ProductCard({ product }: ProductCardProps) {
   const available = product.variants.filter(v => v.availableForSale)
   const [selected, setSelected] = useState<ShopifyVariant>(available[0] ?? product.variants[0])
+  const { addItem, adding } = useCart()
 
   const price = selected
     ? parseFloat(selected.priceV2.amount).toLocaleString('en-US', {
@@ -19,8 +22,17 @@ export function ProductCard({ product }: ProductCardProps) {
       })
     : null
 
-  const checkoutUrl = selected?.availableForSale ? buildCheckoutUrl(selected.id) : '#'
   const hasVariants = product.variants.length > 1
+
+  const handleAddToCart = async () => {
+    if (!selected?.availableForSale) return
+    try {
+      await addItem(selected.id)
+      toast.success(`${product.title} added to cart`)
+    } catch {
+      toast.error('Failed to add to cart')
+    }
+  }
 
   return (
     <div className="bg-[#111118] border border-[#1e1e2a] rounded-xl overflow-hidden flex flex-col hover:border-[#3a3a44] transition-colors">
@@ -54,38 +66,47 @@ export function ProductCard({ product }: ProductCardProps) {
 
         {/* Variant selector */}
         {hasVariants && (
-          <div className="flex flex-wrap gap-1.5 mb-4">
-            {product.variants.map(variant => (
-              <button
-                key={variant.id}
-                onClick={() => variant.availableForSale && setSelected(variant)}
-                disabled={!variant.availableForSale}
-                className={`px-2.5 py-1 text-xs font-mono rounded border transition-colors ${
-                  selected?.id === variant.id
-                    ? 'border-[#fbbf24] text-[#fbbf24] bg-[#fbbf24]/10'
-                    : variant.availableForSale
-                    ? 'border-[#1e1e2a] text-[#8a8a94] hover:border-[#3a3a44] hover:text-[#e8e6e3]'
-                    : 'border-[#1e1e2a] text-[#3a3a44] line-through cursor-not-allowed'
-                }`}
-              >
-                {variant.title}
-              </button>
-            ))}
+          <div className="relative mb-4">
+            <select
+              value={selected?.id ?? ''}
+              onChange={(e) => {
+                const variant = product.variants.find(v => v.id === e.target.value)
+                if (variant) setSelected(variant)
+              }}
+              className="w-full appearance-none bg-[#0a0a0f] border border-[#1e1e2a] text-[#e8e6e3] text-sm font-mono rounded-lg px-3 py-2 pr-8 focus:outline-none focus:border-[#fbbf24] transition-colors cursor-pointer"
+            >
+              {product.variants.map(variant => (
+                <option
+                  key={variant.id}
+                  value={variant.id}
+                  disabled={!variant.availableForSale}
+                >
+                  {variant.title}{!variant.availableForSale ? ' (Sold Out)' : ''}
+                </option>
+              ))}
+            </select>
+            <svg
+              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8a8a94]"
+              fill="none" viewBox="0 0 24 24" stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
           </div>
         )}
 
-        <a
-          href={checkoutUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={handleAddToCart}
+          disabled={!selected?.availableForSale || adding}
           className={`mt-auto block w-full text-center py-2.5 px-4 font-mono text-sm font-bold rounded-lg transition-colors ${
             selected?.availableForSale
-              ? 'bg-[#fbbf24] text-[#0a0a0f] hover:bg-[#f59e0b]'
-              : 'bg-[#1e1e2a] text-[#5a5a64] pointer-events-none cursor-not-allowed'
+              ? adding
+                ? 'bg-[#fbbf24]/70 text-[#0a0a0f] cursor-wait'
+                : 'bg-[#fbbf24] text-[#0a0a0f] hover:bg-[#f59e0b]'
+              : 'bg-[#1e1e2a] text-[#5a5a64] cursor-not-allowed'
           }`}
         >
-          {selected?.availableForSale ? 'Buy Now →' : 'Sold Out'}
-        </a>
+          {!selected?.availableForSale ? 'Sold Out' : adding ? 'Adding...' : 'Add to Cart'}
+        </button>
       </div>
     </div>
   )

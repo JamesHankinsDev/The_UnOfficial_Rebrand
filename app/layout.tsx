@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { CartProvider } from '@/contexts/CartContext'
+import { CartDrawer } from '@/components/merch/CartDrawer'
 import { Toaster } from 'react-hot-toast'
 
 export const metadata: Metadata = {
@@ -22,7 +24,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="antialiased min-h-screen flex flex-col">
         <AuthProvider>
+          <CartProvider>
           {children}
+          <CartDrawer />
           <Toaster
             position="bottom-right"
             toastOptions={{
@@ -37,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               error: { iconTheme: { primary: '#ef4444', secondary: '#0a0a0f' } },
             }}
           />
+          </CartProvider>
         </AuthProvider>
       </body>
     </html>
