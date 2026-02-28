@@ -246,6 +246,17 @@ export function StatRankingGame({
           Share
         </button>
       </div>
+
+      <div className="text-center mt-6">
+        <a
+          href="https://buymeacoffee.com/theunofficialjb"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block text-xs font-mono text-[#5a5a64] hover:text-[#fbbf24] transition-colors"
+        >
+          Enjoying the game? ☕ Tip the UnOfficial
+        </a>
+      </div>
     </div>
   )
 }

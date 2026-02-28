@@ -142,6 +142,19 @@ export default async function ArticlePage({ params }: Props) {
           <ShareBar url={articleUrl} title={article.title} tweetPreview={article.tweetPreview} />
         </div>
 
+        {/* Tip CTA */}
+        <div className="mb-12 p-6 bg-[#111118] border border-[#1e1e2a] rounded-xl text-center">
+          <div className="font-mono text-sm text-[#8a8a94] mb-1">Like what you read?</div>
+          <a
+            href="https://buymeacoffee.com/theunofficialjb"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-sm text-[#fbbf24] hover:text-[#f59e0b] transition-colors"
+          >
+            ☕ Tip the UnOfficial
+          </a>
+        </div>
+
         {/* Subscribe CTA */}
         <div className="mb-16 p-8 bg-[#111118] border border-[#fbbf24]/20 rounded-2xl text-center">
           <div className="font-mono font-bold text-[#fbbf24] text-xl mb-2">Stay Locked In</div>

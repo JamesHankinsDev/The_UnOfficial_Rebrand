@@ -58,14 +58,24 @@ export function Footer() {
           <p className="text-xs font-mono text-[#5a5a64]">
             © {new Date().getFullYear()} The UnOfficial. All rights reserved.
           </p>
-          <a
-            href="https://twitter.com/TheUnOfficial"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs font-mono text-[#5a5a64] hover:text-[#fbbf24] transition-colors"
-          >
-            @TheUnOfficial
-          </a>
+          <div className="flex items-center gap-4">
+            <a
+              href="https://buymeacoffee.com/theunofficialjb"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-mono text-[#5a5a64] hover:text-[#fbbf24] transition-colors"
+            >
+              ☕ Tip the UnOfficial
+            </a>
+            <a
+              href="https://twitter.com/TheUnOfficial"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-mono text-[#5a5a64] hover:text-[#fbbf24] transition-colors"
+            >
+              @TheUnOfficial
+            </a>
+          </div>
         </div>
       </div>
     </footer>
