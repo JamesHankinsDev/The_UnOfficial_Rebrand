@@ -7,7 +7,6 @@ const BASE_URL = 'https://api.balldontlie.io/nba/v1'
 interface ContractResult {
   player_id: number
   salary: number | null
-  contract?: unknown
 }
 
 async function fetchPlayerContract(id: string, apiKey: string): Promise<ContractResult> {
@@ -24,7 +23,7 @@ async function fetchPlayerContract(id: string, apiKey: string): Promise<Contract
         || contract.salary
         || contract.amount
         || contract.value
-      return { player_id: parseInt(id), salary: salary ?? null, contract }
+      return { player_id: parseInt(id), salary: salary ?? null }
     }
     return { player_id: parseInt(id), salary: null }
   } catch {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getApiKey } from "@/lib/balldontlie";
+import { getApiKey, CURRENT_SEASON } from "@/lib/balldontlie";
 import { cached, TTL } from "@/lib/api-cache";
 
 const BASE_URL = "https://api.balldontlie.io/v1";
@@ -161,7 +161,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const stat = (searchParams.get("stat") || "pts") as StatParam;
-    const season = parseInt(searchParams.get("season") || "2025", 10);
+    const season = parseInt(searchParams.get("season") || String(CURRENT_SEASON), 10);
 
     // Computed stats
     if (stat === "pra" || stat === "stocks") {

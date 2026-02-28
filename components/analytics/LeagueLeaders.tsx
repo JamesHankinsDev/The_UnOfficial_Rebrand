@@ -54,6 +54,23 @@ export function LeagueLeaders({ season, onSelectPlayer }: LeagueLeadersProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  const fetchSalaries = useCallback((ids: string) => {
+    fetch(`/api/nba/contracts?player_ids=${ids}`)
+      .then(res => res.json())
+      .then((data: ContractInfo[]) => {
+        if (Array.isArray(data)) {
+          const map = new Map<number, number | null>()
+          for (const c of data) {
+            map.set(c.player_id, c.salary)
+          }
+          setSalaries(map)
+        }
+      })
+      .catch(() => {
+        // Silently fail — salary column will show "—"
+      })
+  }, [])
+
   // Fetch leaders when stat or season changes
   useEffect(() => {
     setLoading(true)
@@ -79,24 +96,7 @@ export function LeagueLeaders({ season, onSelectPlayer }: LeagueLeadersProps) {
         setError('Failed to load leaders')
         setLoading(false)
       })
-  }, [stat, season])
-
-  const fetchSalaries = useCallback((ids: string) => {
-    fetch(`/api/nba/contracts?player_ids=${ids}`)
-      .then(res => res.json())
-      .then((data: ContractInfo[]) => {
-        if (Array.isArray(data)) {
-          const map = new Map<number, number | null>()
-          for (const c of data) {
-            map.set(c.player_id, c.salary)
-          }
-          setSalaries(map)
-        }
-      })
-      .catch(() => {
-        // Silently fail — salary column will show "—"
-      })
-  }, [])
+  }, [stat, season, fetchSalaries])
 
   const statLabel = statCategories.find(c => c.id === stat)?.label ?? stat.toUpperCase()
 

@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
-import { getApi } from '@/lib/balldontlie'
+import { getApi, CURRENT_SEASON } from '@/lib/balldontlie'
 import { cached, TTL } from '@/lib/api-cache'
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const season = parseInt(searchParams.get('season') || '2024', 10)
+    const season = parseInt(searchParams.get('season') || String(CURRENT_SEASON), 10)
 
     const api = getApi()
     const res = await cached(`standings-${season}`, TTL.MEDIUM, () =>

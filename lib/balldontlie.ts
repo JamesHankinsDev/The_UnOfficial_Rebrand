@@ -1,5 +1,8 @@
 import { BalldontlieAPI } from '@balldontlie/sdk'
 
+/** NBA season year (2025 = the 2025-26 season) */
+export const CURRENT_SEASON = 2025
+
 let api: BalldontlieAPI | null = null
 
 export function getApi(): BalldontlieAPI {

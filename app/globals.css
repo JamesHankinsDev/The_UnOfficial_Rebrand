@@ -99,6 +99,20 @@ body {
   margin: 1rem 0;
 }
 
+/* News ticker animation */
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.ticker-track {
+  animation: ticker-scroll 80s linear infinite;
+}
+
+.ticker-track:hover {
+  animation-play-state: paused;
+}
+
 /* Scrollbar styles */
 ::-webkit-scrollbar {
   width: 6px;
