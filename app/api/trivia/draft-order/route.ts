@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getApi } from "@/lib/balldontlie";
+import { cached, TTL } from "@/lib/api-cache";
 
 export interface TriviaPlayer {
   id: number;
@@ -10,11 +11,6 @@ export interface TriviaPlayer {
   draftRound: number;
   draftNumber: number;
 }
-
-// In-memory cache to avoid burning rate-limited API calls
-let cachedPlayers: TriviaPlayer[] = [];
-let cacheTimestamp = 0;
-const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 async function fetchDraftedPlayers(): Promise<TriviaPlayer[]> {
   const api = getApi();
@@ -72,22 +68,16 @@ function pickRandomPlayers(
 
 export async function GET() {
   try {
-    const now = Date.now();
+    const pool = await cached("trivia-players", TTL.DAY, fetchDraftedPlayers);
 
-    // Refresh cache if expired or empty
-    if (cachedPlayers.length === 0 || now - cacheTimestamp > CACHE_TTL) {
-      cachedPlayers = await fetchDraftedPlayers();
-      cacheTimestamp = now;
-    }
-
-    if (cachedPlayers.length < 5) {
+    if (pool.length < 5) {
       return NextResponse.json(
         { error: "Not enough drafted players available" },
         { status: 503 },
       );
     }
 
-    const players = pickRandomPlayers(cachedPlayers, 5);
+    const players = pickRandomPlayers(pool, 5);
 
     // Return players without draft info exposed (client shouldn't see answers)
     const clientPlayers = players.map((p) => ({

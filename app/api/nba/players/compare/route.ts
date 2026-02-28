@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getApi } from '@/lib/balldontlie'
+import { cached, TTL } from '@/lib/api-cache'
 
 export async function GET(request: Request) {
   try {
@@ -18,10 +19,18 @@ export async function GET(request: Request) {
 
     const api = getApi()
     const [player1Res, player2Res, avg1Res, avg2Res] = await Promise.all([
-      api.nba.getPlayer(playerIds[0]),
-      api.nba.getPlayer(playerIds[1]),
-      api.nba.getSeasonAverages({ season, player_id: playerIds[0] }),
-      api.nba.getSeasonAverages({ season, player_id: playerIds[1] }),
+      cached(`player-${playerIds[0]}`, TTL.LONG, () =>
+        api.nba.getPlayer(playerIds[0])
+      ),
+      cached(`player-${playerIds[1]}`, TTL.LONG, () =>
+        api.nba.getPlayer(playerIds[1])
+      ),
+      cached(`season-avg-${playerIds[0]}-${season}`, TTL.MEDIUM, () =>
+        api.nba.getSeasonAverages({ season, player_id: playerIds[0] })
+      ),
+      cached(`season-avg-${playerIds[1]}-${season}`, TTL.MEDIUM, () =>
+        api.nba.getSeasonAverages({ season, player_id: playerIds[1] })
+      ),
     ])
 
     return NextResponse.json({

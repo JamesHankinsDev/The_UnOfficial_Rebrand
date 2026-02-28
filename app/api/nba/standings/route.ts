@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getApi } from '@/lib/balldontlie'
+import { cached, TTL } from '@/lib/api-cache'
 
 export async function GET(request: Request) {
   try {
@@ -7,7 +8,9 @@ export async function GET(request: Request) {
     const season = parseInt(searchParams.get('season') || '2024', 10)
 
     const api = getApi()
-    const res = await api.nba.getStandings({ season })
+    const res = await cached(`standings-${season}`, TTL.MEDIUM, () =>
+      api.nba.getStandings({ season })
+    )
 
     return NextResponse.json(res.data)
   } catch (error) {

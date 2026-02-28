@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getApi } from '@/lib/balldontlie'
+import { cached, TTL } from '@/lib/api-cache'
 
 export async function GET(request: Request) {
   try {
@@ -12,11 +13,13 @@ export async function GET(request: Request) {
     }
 
     const api = getApi()
-    const res = await api.nba.getGames({
-      start_date: start,
-      end_date: end,
-      per_page: 100,
-    })
+    const res = await cached(`games-${start}-${end}`, TTL.SHORT, () =>
+      api.nba.getGames({
+        start_date: start,
+        end_date: end,
+        per_page: 100,
+      })
+    )
 
     return NextResponse.json(res.data)
   } catch (error) {

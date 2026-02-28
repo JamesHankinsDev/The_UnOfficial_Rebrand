@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getApi } from '@/lib/balldontlie'
+import { cached, TTL } from '@/lib/api-cache'
 
 export async function GET(request: Request) {
   try {
@@ -11,7 +12,9 @@ export async function GET(request: Request) {
     }
 
     const api = getApi()
-    const res = await api.nba.getPlayers({ search, per_page: 15 })
+    const res = await cached(`players-search-${search.toLowerCase()}`, TTL.SHORT, () =>
+      api.nba.getPlayers({ search, per_page: 15 })
+    )
 
     return NextResponse.json(res.data)
   } catch (error) {

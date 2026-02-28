@@ -6,6 +6,7 @@ import { Scoreboard } from '@/components/analytics/Scoreboard'
 import { PlayerSearch } from '@/components/analytics/PlayerSearch'
 import { PlayerProfile } from '@/components/analytics/PlayerProfile'
 import { PlayerComparison } from '@/components/analytics/PlayerComparison'
+import { LeagueLeaders } from '@/components/analytics/LeagueLeaders'
 
 const tabs = [
   { id: 'overview', label: 'Overview' },
@@ -101,15 +102,11 @@ export default function AnalyticsPage() {
               <div className="max-w-md mb-6">
                 <PlayerSearch onSelect={(p) => setSelectedPlayerId(p.id)} />
               </div>
-              <div className="text-center py-12">
-                <svg className="w-16 h-16 text-[#1e1e2a] mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <p className="font-mono text-sm text-[#5a5a64]">
-                  Search for a player to view their stats, game log, and scoring trends
-                </p>
-              </div>
+              <h2 className="font-mono font-bold text-[#e8e6e3] text-base mb-4">League Leaders</h2>
+              <LeagueLeaders
+                season={season}
+                onSelectPlayer={(id) => setSelectedPlayerId(id)}
+              />
             </div>
           )}
         </div>

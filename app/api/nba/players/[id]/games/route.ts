@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getApi } from '@/lib/balldontlie'
+import { cached, TTL } from '@/lib/api-cache'
 
 export async function GET(
   request: Request,
@@ -16,14 +17,16 @@ export async function GET(
     const season = parseInt(searchParams.get('season') || '2024', 10)
 
     const api = getApi()
-    const res = await api.nba.getStats({
-      player_ids: [playerId],
-      seasons: [season],
-      per_page: 25,
-    })
+    const res = await cached(`player-games-${playerId}-${season}`, TTL.SHORT, () =>
+      api.nba.getStats({
+        player_ids: [playerId],
+        seasons: [season],
+        per_page: 25,
+      })
+    )
 
     // Sort by game date descending (most recent first)
-    const sorted = res.data.sort(
+    const sorted = [...res.data].sort(
       (a, b) => new Date(b.game.date).getTime() - new Date(a.game.date).getTime()
     )
 

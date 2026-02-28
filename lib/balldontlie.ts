@@ -13,3 +13,11 @@ export function getApi(): BalldontlieAPI {
   api = new BalldontlieAPI({ apiKey: key })
   return api
 }
+
+export function getApiKey(): string {
+  const key = process.env.BALLDONTLIE_API_KEY
+  if (!key) {
+    throw new Error('BALLDONTLIE_API_KEY is not configured')
+  }
+  return key
+}
