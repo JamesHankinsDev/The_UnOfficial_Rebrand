@@ -12,6 +12,7 @@ export interface ShopifyVariant {
   title: string
   availableForSale: boolean
   priceV2: { amount: string; currencyCode: string }
+  image: ShopifyImage | null
 }
 
 export interface ShopifyProduct {
@@ -20,6 +21,7 @@ export interface ShopifyProduct {
   handle: string
   description: string
   featuredImage: ShopifyImage | null
+  images: ShopifyImage[]
   variants: ShopifyVariant[]
   onlineStoreUrl: string | null
 }
@@ -48,6 +50,11 @@ const PRODUCT_FIELDS = `
   description
   onlineStoreUrl
   featuredImage { url altText }
+  images(first: 20) {
+    edges {
+      node { url altText }
+    }
+  }
   variants(first: 50) {
     edges {
       node {
@@ -55,6 +62,7 @@ const PRODUCT_FIELDS = `
         title
         availableForSale
         priceV2 { amount currencyCode }
+        image { url altText }
       }
     }
   }
@@ -63,6 +71,9 @@ const PRODUCT_FIELDS = `
 function mapProducts(edges: { node: Record<string, unknown> }[]): ShopifyProduct[] {
   return edges.map(edge => ({
     ...edge.node,
+    images: (edge.node.images as { edges: { node: ShopifyImage }[] }).edges.map(
+      (img: { node: ShopifyImage }) => img.node
+    ),
     variants: (edge.node.variants as { edges: { node: unknown }[] }).edges.map(
       (v: { node: unknown }) => v.node as ShopifyVariant
     ),

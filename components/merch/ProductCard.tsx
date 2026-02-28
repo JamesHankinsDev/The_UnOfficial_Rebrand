@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import Image from 'next/image'
 import toast from 'react-hot-toast'
-import { ShopifyProduct, ShopifyVariant } from '@/lib/shopify'
+import { ShopifyProduct, ShopifyVariant, ShopifyImage } from '@/lib/shopify'
 import { useCart } from '@/hooks/useCart'
 
 interface ProductCardProps {
@@ -14,6 +14,10 @@ export function ProductCard({ product }: ProductCardProps) {
   const available = product.variants.filter(v => v.availableForSale)
   const [selected, setSelected] = useState<ShopifyVariant>(available[0] ?? product.variants[0])
   const { addItem, adding } = useCart()
+
+  // Determine the displayed image: selected variant's image → featured image
+  const displayImage = selected?.image ?? product.featuredImage
+  const galleryImages = product.images?.length > 1 ? product.images : []
 
   const price = selected
     ? parseFloat(selected.priceV2.amount).toLocaleString('en-US', {
@@ -34,17 +38,58 @@ export function ProductCard({ product }: ProductCardProps) {
     }
   }
 
+  // When user picks a variant, update selection (image swaps automatically)
+  const handleVariantChange = (variantId: string) => {
+    const variant = product.variants.find(v => v.id === variantId)
+    if (variant) setSelected(variant)
+  }
+
+  // When user clicks a thumbnail, find the variant that uses that image
+  const handleThumbnailClick = (image: ShopifyImage) => {
+    const matchingVariant = product.variants.find(
+      v => v.image?.url === image.url && v.availableForSale
+    )
+    if (matchingVariant) {
+      setSelected(matchingVariant)
+    }
+  }
+
   return (
     <div className="bg-[#111118] border border-[#1e1e2a] rounded-xl overflow-hidden flex flex-col hover:border-[#3a3a44] transition-colors">
-      {product.featuredImage && (
+      {displayImage && (
         <div className="relative aspect-square overflow-hidden bg-[#0a0a0f]">
           <Image
-            src={product.featuredImage.url}
-            alt={product.featuredImage.altText ?? product.title}
+            src={displayImage.url}
+            alt={displayImage.altText ?? product.title}
             fill
-            className="object-cover"
+            className="object-cover transition-opacity duration-200"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           />
+        </div>
+      )}
+
+      {/* Thumbnail gallery */}
+      {galleryImages.length > 0 && (
+        <div className="flex gap-1.5 px-3 py-2 overflow-x-auto bg-[#0a0a0f]">
+          {galleryImages.map((img, idx) => (
+            <button
+              key={idx}
+              onClick={() => handleThumbnailClick(img)}
+              className={`relative w-12 h-12 flex-shrink-0 rounded-md overflow-hidden border transition-colors ${
+                displayImage?.url === img.url
+                  ? 'border-[#fbbf24]'
+                  : 'border-[#1e1e2a] hover:border-[#3a3a44]'
+              }`}
+            >
+              <Image
+                src={img.url}
+                alt={img.altText ?? `${product.title} ${idx + 1}`}
+                fill
+                className="object-cover"
+                sizes="48px"
+              />
+            </button>
+          ))}
         </div>
       )}
 
@@ -69,10 +114,7 @@ export function ProductCard({ product }: ProductCardProps) {
           <div className="relative mb-4">
             <select
               value={selected?.id ?? ''}
-              onChange={(e) => {
-                const variant = product.variants.find(v => v.id === e.target.value)
-                if (variant) setSelected(variant)
-              }}
+              onChange={(e) => handleVariantChange(e.target.value)}
               className="w-full appearance-none bg-[#0a0a0f] border border-[#1e1e2a] text-[#e8e6e3] text-sm font-mono rounded-lg px-3 py-2 pr-8 focus:outline-none focus:border-[#fbbf24] transition-colors cursor-pointer"
             >
               {product.variants.map(variant => (
