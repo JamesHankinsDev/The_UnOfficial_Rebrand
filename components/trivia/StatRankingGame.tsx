@@ -4,29 +4,39 @@ import { useState, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { SortablePlayerList, type SortablePlayer } from './SortablePlayerList'
 
-interface DraftAnswer {
-  draftNumber: number
-  draftYear: number
-  draftRound: number
+interface StatAnswer {
+  value: number
 }
 
 type GameState = 'idle' | 'loading' | 'playing' | 'results'
 
-interface DraftOrderGameProps {
+interface StatRankingGameProps {
+  mode: 'pra' | 'stocks'
+  title: string
+  subtitle: string
+  description: string
+  statLabel: string
   onBack?: () => void
 }
 
-export function DraftOrderGame({ onBack }: DraftOrderGameProps) {
+export function StatRankingGame({
+  mode,
+  title,
+  subtitle,
+  description,
+  statLabel,
+  onBack,
+}: StatRankingGameProps) {
   const [state, setState] = useState<GameState>('idle')
   const [orderedPlayers, setOrderedPlayers] = useState<SortablePlayer[]>([])
-  const [answers, setAnswers] = useState<Record<number, DraftAnswer>>({})
+  const [answers, setAnswers] = useState<Record<number, StatAnswer>>({})
   const [submittedOrder, setSubmittedOrder] = useState<SortablePlayer[]>([])
   const [score, setScore] = useState(0)
 
   const fetchPlayers = useCallback(async () => {
     setState('loading')
     try {
-      const res = await fetch('/api/trivia/draft-order')
+      const res = await fetch(`/api/trivia/stat-ranking?mode=${mode}`)
       if (!res.ok) throw new Error('Failed to load')
       const data = await res.json()
       setOrderedPlayers(data.players)
@@ -38,11 +48,12 @@ export function DraftOrderGame({ onBack }: DraftOrderGameProps) {
       toast.error('Failed to load trivia. Try again!')
       setState('idle')
     }
-  }, [])
+  }, [mode])
 
   const handleSubmit = () => {
+    // Correct order: highest stat value first
     const correctOrder = [...orderedPlayers].sort(
-      (a, b) => answers[a.id].draftNumber - answers[b.id].draftNumber
+      (a, b) => answers[b.id].value - answers[a.id].value
     )
     const correctIds = correctOrder.map(p => p.id)
 
@@ -56,7 +67,7 @@ export function DraftOrderGame({ onBack }: DraftOrderGameProps) {
   }
 
   const correctOrder = state === 'results'
-    ? [...submittedOrder].sort((a, b) => answers[a.id].draftNumber - answers[b.id].draftNumber)
+    ? [...submittedOrder].sort((a, b) => answers[b.id].value - answers[a.id].value)
     : []
 
   // --- Idle / Start Screen ---
@@ -71,12 +82,14 @@ export function DraftOrderGame({ onBack }: DraftOrderGameProps) {
             &larr; Back
           </button>
         )}
-        <div className="mb-2 text-4xl sm:text-5xl font-mono font-bold text-[#fbbf24]">
-          Draft IQ
+        <div className="mb-1 text-4xl sm:text-5xl font-mono font-bold text-[#fbbf24]">
+          {title}
+        </div>
+        <div className="mb-4 text-[#5a5a64] font-mono text-xs tracking-wider uppercase">
+          {subtitle}
         </div>
         <p className="text-[#8a8a94] text-sm sm:text-base max-w-md mb-8 leading-relaxed">
-          Five players. Five draft picks. Can you put them in the right order?
-          Drag to rank them from earliest pick to latest.
+          {description}
         </p>
         <button
           onClick={fetchPlayers}
@@ -103,10 +116,10 @@ export function DraftOrderGame({ onBack }: DraftOrderGameProps) {
         )}
         <div className="text-center mb-6">
           <h2 className="font-mono font-bold text-[#e8e6e3] text-lg sm:text-xl mb-1">
-            Rank by Draft Position
+            Rank by {statLabel}
           </h2>
           <p className="text-[#8a8a94] text-xs sm:text-sm">
-            Drag players to reorder — earliest pick first
+            Drag players to reorder — highest {statLabel} first
           </p>
         </div>
 
@@ -146,11 +159,11 @@ export function DraftOrderGame({ onBack }: DraftOrderGameProps) {
         </div>
         <p className="text-[#8a8a94] text-sm">
           {score === 5
-            ? 'Perfect! You know your draft history.'
+            ? `Perfect! You know your ${statLabel} leaders.`
             : score >= 3
-            ? 'Solid draft knowledge!'
+            ? `Solid ${statLabel} knowledge!`
             : score >= 1
-            ? 'Keep studying those drafts!'
+            ? `Keep studying those stat lines!`
             : 'Tough round. Try again!'}
         </p>
       </div>
@@ -189,8 +202,7 @@ export function DraftOrderGame({ onBack }: DraftOrderGameProps) {
                     {player.name}
                   </div>
                   <div className="text-xs text-[#8a8a94]">
-                    Pick #{answer.draftNumber} overall &middot; {answer.draftYear} Draft
-                    {answer.draftRound > 1 ? ` (Rd ${answer.draftRound})` : ''}
+                    {answer.value} {statLabel} &middot; {player.team}
                   </div>
                 </div>
 

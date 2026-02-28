@@ -15,36 +15,38 @@ export interface TriviaPlayer {
 async function fetchDraftedPlayers(): Promise<TriviaPlayer[]> {
   const api = getApi();
 
-  // Fetch a single page of 100 players. Randomize the starting cursor
-  // so we get different slices of the player database on each cache refresh.
-  const randomCursor = Math.floor(Math.random() * 3000) + 1;
+  // Fetch all active players (paginate through ~500 total)
+  const all: TriviaPlayer[] = [];
+  let cursor: number | undefined;
 
-  const res = await api.nba.getPlayers({
-    per_page: 100,
-    cursor: randomCursor,
-  });
+  do {
+    const res = await api.nba.getActivePlayers({
+      per_page: 100,
+      ...(cursor ? { cursor } : {}),
+    });
 
-  const players: TriviaPlayer[] = [];
-
-  for (const p of res.data) {
-    if (
-      p.draft_number != null &&
-      p.draft_year != null &&
-      p.draft_round != null
-    ) {
-      players.push({
-        id: p.id,
-        name: `${p.first_name} ${p.last_name}`,
-        team: p.team?.full_name ?? "Unknown",
-        position: p.position || "N/A",
-        draftYear: p.draft_year,
-        draftRound: p.draft_round,
-        draftNumber: p.draft_number,
-      });
+    for (const p of res.data) {
+      if (
+        p.draft_number != null &&
+        p.draft_year != null &&
+        p.draft_round != null
+      ) {
+        all.push({
+          id: p.id,
+          name: `${p.first_name} ${p.last_name}`,
+          team: p.team?.full_name ?? "Unknown",
+          position: p.position || "N/A",
+          draftYear: p.draft_year,
+          draftRound: p.draft_round,
+          draftNumber: p.draft_number,
+        });
+      }
     }
-  }
 
-  return players;
+    cursor = res.meta?.next_cursor ?? undefined;
+  } while (cursor);
+
+  return all;
 }
 
 function pickRandomPlayers(
