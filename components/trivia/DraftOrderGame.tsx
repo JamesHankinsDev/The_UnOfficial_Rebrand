@@ -68,7 +68,7 @@ export function DraftOrderGame({ onBack }: DraftOrderGameProps) {
       : score >= 3
       ? 'Not bad... but can you beat it?'
       : 'I need backup. Pull up and try this.'
-    const text = `Draft IQ ${score}/5\n${squares}\n\n${taunt}\ntheunofficial.com/trivia`
+    const text = `Draft IQ ${score}/5\n${squares}\n\n${taunt}\nthe-un-official.com/trivia`
     navigator.clipboard.writeText(text).then(() => {
       toast.success('Copied to clipboard!')
     })

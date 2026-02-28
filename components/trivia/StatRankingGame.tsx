@@ -79,7 +79,7 @@ export function StatRankingGame({
       : score >= 3
       ? 'Not bad... but can you beat it?'
       : 'I need backup. Pull up and try this.'
-    const text = `${title} ${score}/5\n${squares}\n\n${taunt}\ntheunofficial.com/trivia`
+    const text = `${title} ${score}/5\n${squares}\n\n${taunt}\nthe-un-official.com/trivia`
     navigator.clipboard.writeText(text).then(() => {
       toast.success('Copied to clipboard!')
     })
