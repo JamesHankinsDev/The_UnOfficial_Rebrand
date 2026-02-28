@@ -59,6 +59,21 @@ export function DraftOrderGame({ onBack }: DraftOrderGameProps) {
     ? [...submittedOrder].sort((a, b) => answers[a.id].draftNumber - answers[b.id].draftNumber)
     : []
 
+  const handleShare = () => {
+    const squares = correctOrder
+      .map((p, i) => (submittedOrder[i]?.id === p.id ? '\u{1F7E9}' : '\u{1F7E5}'))
+      .join('')
+    const taunt = score === 5
+      ? 'Perfect score. Your turn.'
+      : score >= 3
+      ? 'Not bad... but can you beat it?'
+      : 'I need backup. Pull up and try this.'
+    const text = `Draft IQ ${score}/5\n${squares}\n\n${taunt}\ntheunofficial.com/trivia`
+    navigator.clipboard.writeText(text).then(() => {
+      toast.success('Copied to clipboard!')
+    })
+  }
+
   // --- Idle / Start Screen ---
   if (state === 'idle' || state === 'loading') {
     return (
@@ -205,12 +220,18 @@ export function DraftOrderGame({ onBack }: DraftOrderGameProps) {
         </div>
       </div>
 
-      <div className="text-center mt-8">
+      <div className="flex items-center justify-center gap-3 mt-8">
         <button
           onClick={fetchPlayers}
           className="px-8 py-3 font-mono font-bold text-sm rounded-lg bg-[#fbbf24] text-[#0a0a0f] hover:bg-[#f59e0b] transition-colors"
         >
           Play Again
+        </button>
+        <button
+          onClick={handleShare}
+          className="px-8 py-3 font-mono font-bold text-sm rounded-lg border border-[#fbbf24] text-[#fbbf24] hover:bg-[#fbbf24]/10 transition-colors"
+        >
+          Share
         </button>
       </div>
     </div>
