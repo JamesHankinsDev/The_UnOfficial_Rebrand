@@ -4,8 +4,8 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'About | The UnOfficial',
-  description: 'Serious fans. UnSerious takes. Learn about The UnOfficial NBA analytics blog.',
+  title: 'About',
+  description: 'Serious fans. UnSerious takes. Learn about The UnOfficial — a boutique NBA analytics publication covering player valuation, contract analysis, and draft evaluation.',
 }
 
 export default function AboutPage() {

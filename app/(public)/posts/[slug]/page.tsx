@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import { getArticleBySlug, getPublishedArticles } from '@/lib/firestore'
+import { ArticleJsonLd } from '@/components/seo/JsonLd'
 import { SeriesBadge } from '@/components/articles/SeriesBadge'
 import { ReadTimeDisplay } from '@/components/social/ReadTimeDisplay'
 import { ShareBar } from '@/components/social/ShareBar'
@@ -25,15 +26,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const article = await getArticleBySlug(slug)
   if (!article) return { title: 'Not Found | The UnOfficial' }
 
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://the-un-official.com'
+
   return {
-    title: `${article.title} | The UnOfficial`,
+    title: article.title,
     description: article.excerpt,
+    alternates: {
+      canonical: `${baseUrl}/posts/${slug}`,
+    },
     openGraph: {
       title: article.title,
       description: article.excerpt,
       images: [article.coverImageUrl || '/default-og.png'],
       type: 'article',
       publishedTime: article.publishedAt?.toDate().toISOString(),
+      modifiedTime: article.updatedAt?.toDate().toISOString(),
       authors: [article.authorName],
     },
     twitter: {
@@ -64,6 +71,16 @@ export default async function ArticlePage({ params }: Props) {
 
   return (
     <article className="bg-[#0a0a0f]">
+      <ArticleJsonLd
+        title={article.title}
+        description={article.excerpt}
+        url={articleUrl}
+        imageUrl={article.coverImageUrl}
+        authorName={article.authorName}
+        publishedAt={article.publishedAt?.toDate().toISOString()}
+        modifiedAt={article.updatedAt?.toDate().toISOString()}
+        baseUrl={siteUrl}
+      />
       {/* Cover image */}
       {article.coverImageUrl && (
         <div className="relative h-64 sm:h-96 w-full overflow-hidden">
