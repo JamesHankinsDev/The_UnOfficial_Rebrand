@@ -16,12 +16,12 @@ interface PlayerData {
   draft_year: number
   draft_round: number
   draft_number: number
-  team: {
+  team?: {
     full_name: string
     abbreviation: string
     conference: string
     division: string
-  }
+  } | null
 }
 
 interface SeasonAvg {
@@ -96,8 +96,12 @@ export function PlayerProfile({ playerId, season, onBack }: PlayerProfileProps) 
     fetch(`/api/nba/players/${playerId}?season=${season}`)
       .then(res => res.json())
       .then(data => {
-        setPlayer(data.player)
-        setAverages(data.seasonAverages || [])
+        if (data.error) {
+          setPlayer(null)
+        } else {
+          setPlayer(data.player ?? null)
+          setAverages(data.seasonAverages || [])
+        }
         setLoading(false)
       })
       .catch(() => setLoading(false))
@@ -106,9 +110,10 @@ export function PlayerProfile({ playerId, season, onBack }: PlayerProfileProps) 
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setGames(data.slice(0, 10))
+        else setGames([])
         setGamesLoading(false)
       })
-      .catch(() => setGamesLoading(false))
+      .catch(() => { setGames([]); setGamesLoading(false) })
   }, [playerId, season])
 
   if (loading) {
@@ -158,7 +163,7 @@ export function PlayerProfile({ playerId, season, onBack }: PlayerProfileProps) 
             </h2>
             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
               <span className="font-mono text-sm text-[#8a8a94]">
-                {player.team.full_name}
+                {player.team?.full_name || 'No Team'}
               </span>
               <span className="font-mono text-sm text-[#5a5a64]">
                 {player.position || '—'}
@@ -251,8 +256,9 @@ export function PlayerProfile({ playerId, season, onBack }: PlayerProfileProps) 
               </thead>
               <tbody>
                 {games.map(g => {
-                  const isHome = g.team.abbreviation === g.game.home_team.abbreviation
-                  const opponent = isHome ? g.game.visitor_team.abbreviation : g.game.home_team.abbreviation
+                  const teamAbbr = g.team?.abbreviation || ''
+                  const isHome = teamAbbr === g.game.home_team?.abbreviation
+                  const opponent = isHome ? g.game.visitor_team?.abbreviation : g.game.home_team?.abbreviation
                   const won = isHome
                     ? g.game.home_team_score > g.game.visitor_team_score
                     : g.game.visitor_team_score > g.game.home_team_score

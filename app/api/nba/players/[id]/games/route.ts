@@ -25,8 +25,11 @@ export async function GET(
       })
     )
 
+    // SDK may return { data: [...] } or the array directly
+    const games = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []
+
     // Sort by game date descending (most recent first)
-    const sorted = [...res.data].sort(
+    const sorted = [...games].sort(
       (a, b) => new Date(b.game.date).getTime() - new Date(a.game.date).getTime()
     )
 

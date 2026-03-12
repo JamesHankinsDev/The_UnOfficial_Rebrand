@@ -26,10 +26,19 @@ export async function GET(
       ),
     ])
 
-    return NextResponse.json({
-      player: playerRes.data,
-      seasonAverages: averagesRes.data,
-    })
+    // SDK may return { data: ... } wrapper or the object directly
+    const player = playerRes?.data ?? playerRes
+    if (!player || (typeof player === 'object' && 'error' in player)) {
+      return NextResponse.json({ error: 'Player not found' }, { status: 404 })
+    }
+
+    const seasonAverages = Array.isArray(averagesRes?.data)
+      ? averagesRes.data
+      : Array.isArray(averagesRes)
+        ? averagesRes
+        : []
+
+    return NextResponse.json({ player, seasonAverages })
   } catch (error) {
     console.error('Player detail error:', error)
     return NextResponse.json({ error: 'Failed to fetch player' }, { status: 500 })

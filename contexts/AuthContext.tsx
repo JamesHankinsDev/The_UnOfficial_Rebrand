@@ -30,8 +30,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (firebaseUser) {
         const doc = await getUser(firebaseUser.uid)
         setUserDoc(doc)
+        // Set session cookie for middleware route protection
+        document.cookie = '__session=1; path=/; max-age=604800; SameSite=Lax'
       } else {
         setUserDoc(null)
+        // Clear session cookie
+        document.cookie = '__session=; path=/; max-age=0'
       }
       setLoading(false)
     })
