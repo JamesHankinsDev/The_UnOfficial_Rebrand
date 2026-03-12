@@ -11,6 +11,8 @@ import {
   where,
   orderBy,
   limit,
+  increment,
+  runTransaction,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -327,4 +329,166 @@ export async function getAllSubscribers(): Promise<SubscriberDoc[]> {
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as SubscriberDoc);
+}
+
+// --- TCG: Wallets ---
+
+export type CardRarity = "common" | "uncommon" | "rare" | "epic" | "legendary";
+
+export interface WalletDoc {
+  bucks: number;
+  totalEarned: number;
+  totalSpent: number;
+  updatedAt: Timestamp;
+}
+
+export interface CardDoc {
+  id: string;
+  ownerId: string;
+  playerId: number;
+  playerName: string;
+  teamAbbreviation: string;
+  position: string;
+  season: number;
+  rarity: CardRarity;
+  stats: {
+    pts: number;
+    reb: number;
+    ast: number;
+    stl: number;
+    blk: number;
+    pra: number;
+    stocks: number;
+  };
+  acquiredAt: Timestamp;
+  packId: string;
+}
+
+export interface PackDoc {
+  id: string;
+  userId: string;
+  cardIds: string[];
+  cost: number;
+  openedAt: Timestamp;
+}
+
+export async function getWallet(uid: string): Promise<WalletDoc> {
+  const snap = await getDoc(doc(db, "wallets", uid));
+  if (!snap.exists()) {
+    return { bucks: 0, totalEarned: 0, totalSpent: 0, updatedAt: Timestamp.now() };
+  }
+  return snap.data() as WalletDoc;
+}
+
+export async function creditBucks(uid: string, amount: number): Promise<void> {
+  const ref = doc(db, "wallets", uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      bucks: amount,
+      totalEarned: amount,
+      totalSpent: 0,
+      updatedAt: Timestamp.now(),
+    });
+  } else {
+    await updateDoc(ref, {
+      bucks: increment(amount),
+      totalEarned: increment(amount),
+      updatedAt: Timestamp.now(),
+    });
+  }
+}
+
+export const PACK_COST = 15;
+export const CARDS_PER_PACK = 7;
+
+/**
+ * Atomically deducts bucks and writes cards + pack record.
+ * Returns the created cards on success, or throws if insufficient balance.
+ */
+export async function openPack(
+  uid: string,
+  cards: Omit<CardDoc, "id" | "acquiredAt" | "packId">[],
+): Promise<{ packId: string; cards: CardDoc[] }> {
+  const packId = uuidv4();
+  const now = Timestamp.now();
+
+  await runTransaction(db, async (tx) => {
+    const walletRef = doc(db, "wallets", uid);
+    const walletSnap = await tx.get(walletRef);
+
+    const currentBucks = walletSnap.exists() ? (walletSnap.data().bucks as number) : 0;
+    if (currentBucks < PACK_COST) {
+      throw new Error("Insufficient UnOfficial Bucks");
+    }
+
+    // Deduct bucks
+    if (walletSnap.exists()) {
+      tx.update(walletRef, {
+        bucks: increment(-PACK_COST),
+        totalSpent: increment(PACK_COST),
+        updatedAt: now,
+      });
+    } else {
+      tx.set(walletRef, {
+        bucks: -PACK_COST,
+        totalEarned: 0,
+        totalSpent: PACK_COST,
+        updatedAt: now,
+      });
+    }
+
+    // Write cards
+    const cardIds: string[] = [];
+    for (const card of cards) {
+      const cardRef = doc(collection(db, "cards"));
+      cardIds.push(cardRef.id);
+      tx.set(cardRef, {
+        ...card,
+        ownerId: uid,
+        acquiredAt: now,
+        packId,
+      });
+    }
+
+    // Write pack record
+    tx.set(doc(db, "packs", packId), {
+      userId: uid,
+      cardIds,
+      cost: PACK_COST,
+      openedAt: now,
+    });
+  });
+
+  // Return the created cards for the reveal UI
+  const createdCards: CardDoc[] = cards.map((c, i) => ({
+    ...c,
+    id: `pending-${i}`, // IDs are server-generated; re-fetch if needed
+    ownerId: uid,
+    acquiredAt: now,
+    packId,
+  }));
+
+  return { packId, cards: createdCards };
+}
+
+export async function getUserCards(
+  uid: string,
+  opts?: { rarity?: CardRarity; lim?: number },
+): Promise<CardDoc[]> {
+  const constraints: Parameters<typeof query>[1][] = [
+    where("ownerId", "==", uid),
+    orderBy("acquiredAt", "desc"),
+  ];
+  if (opts?.rarity) constraints.push(where("rarity", "==", opts.rarity));
+  if (opts?.lim) constraints.push(limit(opts.lim));
+  const q = query(collection(db, "cards"), ...constraints);
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as CardDoc);
+}
+
+export async function getUserCardCount(uid: string): Promise<number> {
+  const q = query(collection(db, "cards"), where("ownerId", "==", uid));
+  const snap = await getDocs(q);
+  return snap.size;
 }

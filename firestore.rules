@@ -77,5 +77,32 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow delete: if isAdmin();
     }
+
+    // --- TCG: Wallets, Cards, Packs ---
+
+    // /wallets/{uid} — currency balance
+    // - Users can read/write their own wallet
+    // - Balance must never go negative
+    match /wallets/{uid} {
+      allow read: if request.auth.uid == uid;
+      allow create: if request.auth.uid == uid;
+      allow update: if request.auth.uid == uid
+                    && request.resource.data.bucks >= 0;
+    }
+
+    // /cards/{cardId} — collected player cards
+    // - Users can read their own cards
+    // - Users can create cards they own (via pack opening transaction)
+    match /cards/{cardId} {
+      allow read: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+    }
+
+    // /packs/{packId} — pack opening audit trail
+    // - Users can read/create their own packs
+    match /packs/{packId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+    }
   }
 }

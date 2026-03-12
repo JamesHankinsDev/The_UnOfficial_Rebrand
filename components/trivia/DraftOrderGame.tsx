@@ -1,7 +1,10 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import Link from 'next/link'
 import toast from 'react-hot-toast'
+import { useAuth } from '@/contexts/AuthContext'
+import { creditBucks } from '@/lib/firestore'
 import { SortablePlayerList, type SortablePlayer } from './SortablePlayerList'
 
 interface DraftAnswer {
@@ -17,11 +20,13 @@ interface DraftOrderGameProps {
 }
 
 export function DraftOrderGame({ onBack }: DraftOrderGameProps) {
+  const { user } = useAuth()
   const [state, setState] = useState<GameState>('idle')
   const [orderedPlayers, setOrderedPlayers] = useState<SortablePlayer[]>([])
   const [answers, setAnswers] = useState<Record<number, DraftAnswer>>({})
   const [submittedOrder, setSubmittedOrder] = useState<SortablePlayer[]>([])
   const [score, setScore] = useState(0)
+  const [bucksEarned, setBucksEarned] = useState(0)
 
   const fetchPlayers = useCallback(async () => {
     setState('loading')
@@ -33,6 +38,7 @@ export function DraftOrderGame({ onBack }: DraftOrderGameProps) {
       setAnswers(data.answers)
       setSubmittedOrder([])
       setScore(0)
+      setBucksEarned(0)
       setState('playing')
     } catch {
       toast.error('Failed to load trivia. Try again!')
@@ -52,7 +58,13 @@ export function DraftOrderGame({ onBack }: DraftOrderGameProps) {
     }
     setSubmittedOrder([...orderedPlayers])
     setScore(correct)
+    setBucksEarned(correct)
     setState('results')
+
+    // Credit bucks for correct answers
+    if (correct > 0 && user) {
+      creditBucks(user.uid, correct).catch(() => {})
+    }
   }
 
   const correctOrder = state === 'results'
@@ -168,6 +180,14 @@ export function DraftOrderGame({ onBack }: DraftOrderGameProps) {
             ? 'Keep studying those drafts!'
             : 'Tough round. Try again!'}
         </p>
+        {bucksEarned > 0 && user && (
+          <p className="mt-2 font-mono text-sm text-[#fbbf24]">
+            +{bucksEarned} UnOfficial Buck{bucksEarned !== 1 ? 's' : ''} earned!
+            <Link href="/cards" className="ml-2 underline text-xs hover:text-[#f59e0b]">
+              Spend them →
+            </Link>
+          </p>
+        )}
       </div>
 
       <div className="max-w-lg mx-auto mb-4">

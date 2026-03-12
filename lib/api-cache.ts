@@ -7,7 +7,7 @@
  *   arrive simultaneously for the same key, only 1 fetcher call runs.
  */
 
-import { unstable_cache } from "next/cache";
+import { unstable_cache, revalidateTag } from "next/cache";
 
 const inflight = new Map<string, Promise<unknown>>();
 
@@ -29,7 +29,10 @@ export async function cached<T>(
   }
 
   const revalidate = Math.max(1, Math.round(ttlMs / 1000));
-  const cachedFetcher = unstable_cache(fetcher, [key], { revalidate });
+  const cachedFetcher = unstable_cache(fetcher, [key], {
+    revalidate,
+    tags: [key, "all-api-cache"],
+  });
 
   const promise = cachedFetcher()
     .then((data) => {
@@ -43,6 +46,23 @@ export async function cached<T>(
 
   inflight.set(key, promise);
   return promise;
+}
+
+/**
+ * Purge all cached data. Call via the /api/cache/purge endpoint
+ * or after a deployment to force fresh API fetches.
+ */
+export function purgeAllCache(): void {
+  revalidateTag("all-api-cache", "default");
+  inflight.clear();
+}
+
+/**
+ * Purge a specific cache key.
+ */
+export function purgeCache(key: string): void {
+  revalidateTag(key, "default");
+  inflight.delete(key);
 }
 
 // ── Common TTL constants (ms) ────────────────────────────────────────
