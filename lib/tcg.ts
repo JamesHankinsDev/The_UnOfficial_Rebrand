@@ -8,12 +8,13 @@ export const RARITY_TIERS: {
   minPercentile: number;
   color: string;
   glowColor: string;
+  sellValue: number;
 }[] = [
-  { tier: "legendary", label: "Legendary", minPercentile: 97, color: "#fbbf24", glowColor: "rgba(251,191,36,0.4)" },
-  { tier: "epic", label: "Epic", minPercentile: 90, color: "#8b5cf6", glowColor: "rgba(139,92,246,0.4)" },
-  { tier: "rare", label: "Rare", minPercentile: 75, color: "#3b82f6", glowColor: "rgba(59,130,246,0.4)" },
-  { tier: "uncommon", label: "Uncommon", minPercentile: 50, color: "#10b981", glowColor: "rgba(16,185,129,0.4)" },
-  { tier: "common", label: "Common", minPercentile: 0, color: "#6b7280", glowColor: "rgba(107,114,128,0.3)" },
+  { tier: "legendary", label: "Legendary", minPercentile: 97, color: "#fbbf24", glowColor: "rgba(251,191,36,0.4)", sellValue: 5 },
+  { tier: "epic",      label: "Epic",      minPercentile: 90, color: "#8b5cf6", glowColor: "rgba(139,92,246,0.4)",  sellValue: 4 },
+  { tier: "rare",      label: "Rare",      minPercentile: 75, color: "#3b82f6", glowColor: "rgba(59,130,246,0.4)",  sellValue: 3 },
+  { tier: "uncommon",  label: "Uncommon",  minPercentile: 50, color: "#10b981", glowColor: "rgba(16,185,129,0.4)",  sellValue: 2 },
+  { tier: "common",    label: "Common",    minPercentile: 0,  color: "#6b7280", glowColor: "rgba(107,114,128,0.3)", sellValue: 1 },
 ];
 
 // Pack odds (out of 100) — cumulative thresholds

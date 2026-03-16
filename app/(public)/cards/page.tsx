@@ -97,7 +97,7 @@ export default function CardsPage() {
 
           {/* Tab content */}
           {activeTab === "collection" ? (
-            <CardGrid refreshKey={refreshKey} />
+            <CardGrid refreshKey={refreshKey} onBucksChange={handleBucksChange} />
           ) : (
             <PackOpener
               onPackOpened={handlePackOpened}

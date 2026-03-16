@@ -106,6 +106,7 @@ export function PackOpener({ onPackOpened, onBucksChange }: PackOpenerProps) {
               rarity={card.rarity}
               stats={card.stats}
               nbaId={card.nbaId}
+              season={card.season}
               faceDown
               onFlip={handleCardFlip}
             />

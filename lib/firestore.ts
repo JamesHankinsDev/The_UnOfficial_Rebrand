@@ -13,6 +13,7 @@ import {
   limit,
   increment,
   runTransaction,
+  writeBatch,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -494,4 +495,50 @@ export async function getUserCardCount(uid: string): Promise<number> {
   const q = query(collection(db, "cards"), where("ownerId", "==", uid));
   const snap = await getDocs(q);
   return snap.size;
+}
+
+/** Sells a single card: deletes it and credits bucks to the owner's wallet. */
+export async function sellCard(
+  cardId: string,
+  uid: string,
+  bucks: number,
+): Promise<void> {
+  const cardRef = doc(db, "cards", cardId);
+  const walletRef = doc(db, "wallets", uid);
+
+  await runTransaction(db, async (tx) => {
+    const cardSnap = await tx.get(cardRef);
+    if (!cardSnap.exists() || cardSnap.data().ownerId !== uid) {
+      throw new Error("Card not found");
+    }
+    tx.delete(cardRef);
+    const walletSnap = await tx.get(walletRef);
+    if (walletSnap.exists()) {
+      tx.update(walletRef, {
+        bucks: increment(bucks),
+        totalEarned: increment(bucks),
+        updatedAt: Timestamp.now(),
+      });
+    } else {
+      tx.set(walletRef, {
+        bucks,
+        totalEarned: bucks,
+        totalSpent: 0,
+        updatedAt: Timestamp.now(),
+      });
+    }
+  });
+}
+
+/** Deletes all cards owned by the user. Firestore batches max 500 ops. */
+export async function clearUserCards(uid: string): Promise<void> {
+  const q = query(collection(db, "cards"), where("ownerId", "==", uid));
+  const snap = await getDocs(q);
+  const docs = snap.docs;
+  // Process in chunks of 500 (Firestore batch limit)
+  for (let i = 0; i < docs.length; i += 500) {
+    const batch = writeBatch(db);
+    docs.slice(i, i + 500).forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }
 }
