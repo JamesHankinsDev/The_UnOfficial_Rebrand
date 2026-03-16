@@ -48,6 +48,7 @@ function rollRarity(): CardRarity {
 
 export interface PoolPlayer {
   playerId: number;
+  nbaId?: number;
   firstName: string;
   lastName: string;
   position: string;
@@ -74,6 +75,7 @@ export interface PoolPlayer {
 export function buildPlayerPool(
   players: {
     player_id: number;
+    nba_id?: number;
     first_name: string;
     last_name: string;
     position: string;
@@ -96,6 +98,7 @@ export function buildPlayerPool(
     const stocks = p.stl + p.blk;
     return {
       playerId: p.player_id,
+      nbaId: p.nba_id,
       firstName: p.first_name,
       lastName: p.last_name,
       position: p.position,
@@ -132,6 +135,7 @@ export function buildPlayerPool(
 
 export interface GeneratedCard {
   playerId: number;
+  nbaId?: number;
   playerName: string;
   teamAbbreviation: string;
   position: string;
@@ -184,6 +188,7 @@ export function generatePack(pool: PoolPlayer[], count = 7): GeneratedCard[] {
 
     cards.push({
       playerId: pick.playerId,
+      nbaId: pick.nbaId,
       playerName: `${pick.firstName} ${pick.lastName}`,
       teamAbbreviation: pick.teamAbbreviation,
       position: pick.position,

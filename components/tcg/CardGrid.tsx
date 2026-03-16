@@ -20,6 +20,7 @@ export function CardGrid({ refreshKey }: CardGridProps) {
   const { user } = useAuth();
   const [cards, setCards] = useState<CardDoc[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeRarity, setActiveRarity] = useState<CardRarity | "">("");
 
   useEffect(() => {
@@ -29,9 +30,14 @@ export function CardGrid({ refreshKey }: CardGridProps) {
       return;
     }
     setLoading(true);
+    setError(null);
     getUserCards(user.uid, activeRarity ? { rarity: activeRarity } : undefined)
       .then(setCards)
-      .catch(() => setCards([]))
+      .catch((err) => {
+        console.error("Failed to load cards:", err);
+        setError("Failed to load collection. Please try again.");
+        setCards([]);
+      })
       .finally(() => setLoading(false));
   }, [user, activeRarity, refreshKey]);
 
@@ -65,7 +71,11 @@ export function CardGrid({ refreshKey }: CardGridProps) {
       </div>
 
       {/* Grid */}
-      {loading ? (
+      {error ? (
+        <div className="text-center py-16">
+          <p className="font-mono text-sm text-red-400">{error}</p>
+        </div>
+      ) : loading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {Array.from({ length: 8 }).map((_, i) => (
             <div
@@ -92,6 +102,7 @@ export function CardGrid({ refreshKey }: CardGridProps) {
               position={card.position}
               rarity={card.rarity}
               stats={card.stats}
+              nbaId={card.nbaId}
             />
           ))}
         </div>

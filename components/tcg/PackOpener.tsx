@@ -45,6 +45,7 @@ export function PackOpener({ onPackOpened, onBucksChange }: PackOpenerProps) {
         user.uid,
         generatedCards.map((c) => ({
           playerId: c.playerId,
+          nbaId: c.nbaId,
           playerName: c.playerName,
           teamAbbreviation: c.teamAbbreviation,
           position: c.position,
@@ -104,6 +105,7 @@ export function PackOpener({ onPackOpened, onBucksChange }: PackOpenerProps) {
               position={card.position}
               rarity={card.rarity}
               stats={card.stats}
+              nbaId={card.nbaId}
               faceDown
               onFlip={handleCardFlip}
             />

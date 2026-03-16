@@ -346,6 +346,7 @@ export interface CardDoc {
   id: string;
   ownerId: string;
   playerId: number;
+  nbaId?: number;
   playerName: string;
   teamAbbreviation: string;
   position: string;
@@ -443,12 +444,14 @@ export async function openPack(
     for (const card of cards) {
       const cardRef = doc(collection(db, "cards"));
       cardIds.push(cardRef.id);
-      tx.set(cardRef, {
+      const cardData: Record<string, unknown> = {
         ...card,
         ownerId: uid,
         acquiredAt: now,
         packId,
-      });
+      };
+      if (cardData.nbaId === undefined) delete cardData.nbaId;
+      tx.set(cardRef, cardData);
     }
 
     // Write pack record

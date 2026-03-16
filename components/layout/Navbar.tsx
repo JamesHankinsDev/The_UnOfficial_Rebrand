@@ -11,6 +11,7 @@ import { logout } from '@/lib/auth'
 const navLinks = [
   { href: '/posts', label: 'Articles' },
   { href: '/trivia', label: 'Trivia' },
+  { href: '/cards', label: 'Cards' },
   { href: '/merch', label: 'Merch' },
   { href: '/about', label: 'About' },
 ]

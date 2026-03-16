@@ -6,6 +6,41 @@ import { buildPlayerPool, type PoolPlayer } from "@/lib/tcg";
 const BASE_URL = "https://api.balldontlie.io/v1";
 const CORE_STATS = ["pts", "reb", "ast", "blk", "stl"] as const;
 
+/** Fetches a name→personId map from the NBA Stats API. Cached for one day. */
+async function getNbaPersonIdMap(): Promise<Map<string, number>> {
+  const rows = await cached<{ id: number; name: string }[]>(
+    "nba-person-ids",
+    TTL.DAY,
+    async () => {
+      const nbaSeasonStr = `${CURRENT_SEASON}-${String(CURRENT_SEASON + 1).slice(-2)}`;
+      const res = await fetch(
+        `https://stats.nba.com/stats/commonallplayers?LeagueID=00&Season=${nbaSeasonStr}&IsOnlyCurrentSeason=1`,
+        {
+          headers: {
+            "User-Agent": "Mozilla/5.0",
+            Referer: "https://www.nba.com/",
+            Accept: "application/json",
+            Origin: "https://www.nba.com",
+          },
+        },
+      );
+      if (!res.ok) throw new Error(`NBA Stats API returned ${res.status}`);
+      const json = await res.json();
+      const rs = json.resultSets?.[0];
+      const personIdx: number = rs.headers.indexOf("PERSON_ID");
+      const nameIdx: number = rs.headers.indexOf("DISPLAY_FIRST_LAST");
+      return (rs.rowSet as unknown[][]).map((row) => ({
+        id: row[personIdx] as number,
+        name: row[nameIdx] as string,
+      }));
+    },
+  );
+
+  const map = new Map<string, number>();
+  for (const { id, name } of rows) map.set(name.toLowerCase(), id);
+  return map;
+}
+
 interface RawLeader {
   player: {
     id: number;
@@ -56,10 +91,11 @@ async function fetchLeaders(stat: string, season: number): Promise<RawLeader[]> 
  */
 export async function getPlayerPool(season = CURRENT_SEASON): Promise<PoolPlayer[]> {
   return cached(`tcg-player-pool-${season}`, TTL.DAY, async () => {
-    // Fetch all core stat leaders in parallel
-    const results = await Promise.all(
-      CORE_STATS.map((stat) => fetchLeaders(stat, season)),
-    );
+    // Fetch all core stat leaders + NBA person IDs in parallel
+    const [results, nbaPersonIds] = await Promise.all([
+      Promise.all(CORE_STATS.map((stat) => fetchLeaders(stat, season))),
+      getNbaPersonIdMap().catch(() => new Map<string, number>()),
+    ]);
 
     const teams = await getTeamsMap();
 
@@ -93,8 +129,10 @@ export async function getPlayerPool(season = CURRENT_SEASON): Promise<PoolPlayer
     // Convert to buildPlayerPool input format
     const players = Array.from(playerMap.values()).map((p) => {
       const team = teams.get(p.player.team_id);
+      const fullName = `${p.player.first_name} ${p.player.last_name}`.toLowerCase();
       return {
         player_id: p.player.id,
+        nba_id: nbaPersonIds.get(fullName),
         first_name: p.player.first_name,
         last_name: p.player.last_name,
         position: p.player.position,

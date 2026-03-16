@@ -5,11 +5,15 @@ import type { CardRarity } from "@/lib/firestore";
 import { getRarityMeta } from "@/lib/tcg";
 import { RarityBadge } from "./RarityBadge";
 
+const NBA_HEADSHOT_URL = (nbaId: number) =>
+  `https://cdn.nba.com/headshots/nba/latest/260x190/${nbaId}.png`;
+
 interface PlayerCardProps {
   playerName: string;
   teamAbbreviation: string;
   position: string;
   rarity: CardRarity;
+  nbaId?: number;
   stats: {
     pts: number;
     reb: number;
@@ -31,12 +35,15 @@ export function PlayerCard({
   teamAbbreviation,
   position,
   rarity,
+  nbaId,
   stats,
   faceDown = false,
   onFlip,
   compact = false,
 }: PlayerCardProps) {
   const [flipped, setFlipped] = useState(!faceDown);
+  const [imgLoading, setImgLoading] = useState(true);
+  const [imgError, setImgError] = useState(false);
   const meta = getRarityMeta(rarity);
 
   const handleFlip = () => {
@@ -65,7 +72,7 @@ export function PlayerCard({
   return (
     <div
       className={`relative rounded-xl border-2 bg-[#111118] overflow-hidden transition-all duration-500 ${
-        compact ? "" : "aspect-[2.5/3.5]"
+        compact ? "" : "aspect-2.5/4"
       }`}
       style={{
         borderColor: meta.color,
@@ -98,6 +105,30 @@ export function PlayerCard({
           <RarityBadge rarity={rarity} />
         </div>
 
+        {/* Headshot */}
+        {!compact && (
+          <div className="relative w-full h-24 rounded-lg overflow-hidden bg-[#0d0d14] mb-2 flex items-center justify-center">
+            {nbaId && !imgError ? (
+              <>
+                {imgLoading && (
+                  <div className="absolute inset-0 bg-brand-border animate-pulse rounded-lg" />
+                )}
+                <img
+                  src={NBA_HEADSHOT_URL(nbaId)}
+                  alt={`${playerName} headshot`}
+                  onLoad={() => setImgLoading(false)}
+                  onError={() => { setImgLoading(false); setImgError(true); }}
+                  className={`w-full h-full object-contain transition-opacity duration-300 ${
+                    imgLoading ? "opacity-0" : "opacity-100"
+                  }`}
+                />
+              </>
+            ) : (
+              <PlayerSilhouette />
+            )}
+          </div>
+        )}
+
         {/* Stats grid */}
         <div className={`grid grid-cols-3 gap-2 ${compact ? "mt-1" : "mt-auto"}`}>
           <MiniStat label="PTS" value={stats.pts} highlight />
@@ -124,6 +155,15 @@ export function PlayerCard({
         )}
       </div>
     </div>
+  );
+}
+
+function PlayerSilhouette() {
+  return (
+    <svg viewBox="0 0 80 80" className="w-12 h-12 opacity-20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="40" cy="28" r="16" fill="#8a8a94" />
+      <path d="M12 80 C12 54 24 46 40 46 C56 46 68 54 68 80" fill="#8a8a94" />
+    </svg>
   );
 }
 
