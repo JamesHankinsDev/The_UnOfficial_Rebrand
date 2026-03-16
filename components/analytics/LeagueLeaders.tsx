@@ -1,6 +1,8 @@
 'use client'
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
+
+const NBA_CAP = 141_000_000
 
 interface LeaderEntry {
   player_id: number
@@ -12,7 +14,11 @@ interface LeaderEntry {
   value: number
   games_played: number
   rank: number
+  draft_year?: number | null
 }
+
+// Players drafted within the last 4 seasons are on rookie deals
+const ROOKIE_CUTOFF_YEAR = 2022  // 2025-26 season: 2022–2025 draftees
 
 interface ContractInfo {
   player_id: number
@@ -30,15 +36,20 @@ const statCategories = [
 ] as const
 
 type StatId = (typeof statCategories)[number]['id']
+type ViewMode = 'stat' | 'value'
+type Period = 'season' | 'week' | 'month'
+type ContractFilter = 'all' | 'rookie' | 'vet'
+
+const periodLabels: Record<Period, string> = {
+  season: 'This Season',
+  week: 'Last 7 Days',
+  month: 'This Month',
+}
 
 function formatSalary(amount: number | null | undefined): string {
   if (amount == null) return '—'
-  if (amount >= 1_000_000) {
-    return `$${(amount / 1_000_000).toFixed(1)}M`
-  }
-  if (amount >= 1_000) {
-    return `$${(amount / 1_000).toFixed(0)}K`
-  }
+  if (amount >= 1_000_000) return `$${(amount / 1_000_000).toFixed(1)}M`
+  if (amount >= 1_000) return `$${(amount / 1_000).toFixed(0)}K`
   return `$${amount.toLocaleString()}`
 }
 
@@ -49,61 +60,143 @@ interface LeagueLeadersProps {
 
 export function LeagueLeaders({ season, onSelectPlayer }: LeagueLeadersProps) {
   const [stat, setStat] = useState<StatId>('pts')
+  const [period, setPeriod] = useState<Period>('season')
+  const [contractFilter, setContractFilter] = useState<ContractFilter>('all')
+  const [viewMode, setViewMode] = useState<ViewMode>('stat')
+  // stat leaders (top 20) for display in stat mode
   const [leaders, setLeaders] = useState<LeaderEntry[]>([])
+  // wider pool (top 150) used for cap value ranking
+  const [valuePool, setValuePool] = useState<LeaderEntry[]>([])
   const [salaries, setSalaries] = useState<Map<number, number | null>>(new Map())
+  const [salariesLoading, setSalariesLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const fetchSalaries = useCallback((ids: string) => {
-    fetch(`/api/nba/contracts?player_ids=${ids}`)
-      .then(res => res.json())
-      .then((data: ContractInfo[]) => {
-        if (Array.isArray(data)) {
-          const map = new Map<number, number | null>()
-          for (const c of data) {
-            map.set(c.player_id, c.salary)
-          }
-          setSalaries(map)
-        }
-      })
-      .catch(() => {
-        // Silently fail — salary column will show "—"
-      })
-  }, [])
-
-  // Fetch leaders when stat or season changes
   useEffect(() => {
     setLoading(true)
     setError('')
     setSalaries(new Map())
+    setValuePool([])
 
-    fetch(`/api/nba/leaders?stat=${stat}&season=${season}`)
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to load')
-        return res.json()
-      })
-      .then((data: LeaderEntry[]) => {
-        setLeaders(data)
-        setLoading(false)
+    const controller = new AbortController()
+    const { signal } = controller
 
-        // Fetch salaries for the loaded leaders
-        if (data.length > 0) {
-          const ids = data.map(l => l.player_id).join(',')
-          fetchSalaries(ids)
-        }
+    const periodParam = `&period=${period}`
+
+    // Fetch top 20 for the stat leaders display
+    const statFetch = fetch(`/api/nba/leaders?stat=${stat}&season=${season}&limit=20${periodParam}`, { signal })
+      .then(res => { if (!res.ok) throw new Error('Failed to load'); return res.json() })
+      .then((data: LeaderEntry[]) => { setLeaders(data); setLoading(false); return data })
+
+    // Fetch top 150 for cap value ranking in parallel
+    const poolFetch = fetch(`/api/nba/leaders?stat=${stat}&season=${season}&limit=150${periodParam}`, { signal })
+      .then(res => res.ok ? res.json() : [])
+      .then((data: LeaderEntry[]) => { setValuePool(data); return data })
+      .catch(() => [])
+
+    // Once both resolve, fetch salaries for the full pool
+    Promise.all([statFetch, poolFetch])
+      .then(([, pool]) => {
+        if (!pool.length) return
+        setSalariesLoading(true)
+        const ids = pool.map((l: LeaderEntry) => l.player_id).join(',')
+        fetch(`/api/nba/contracts?player_ids=${ids}`, { signal })
+          .then(r => r.json())
+          .then((contracts: ContractInfo[]) => {
+            if (Array.isArray(contracts)) {
+              const map = new Map<number, number | null>()
+              for (const c of contracts) map.set(c.player_id, c.salary)
+              setSalaries(map)
+            }
+          })
+          .catch(() => {})
+          .finally(() => setSalariesLoading(false))
       })
-      .catch(() => {
+      .catch(err => {
+        if (err.name === 'AbortError') return
         setError('Failed to load leaders')
         setLoading(false)
       })
-  }, [stat, season, fetchSalaries])
+
+    return () => controller.abort()
+  }, [stat, season, period])
+
+  // Apply contract filter to any array of leaders
+  function applyContractFilter(list: LeaderEntry[]): LeaderEntry[] {
+    if (contractFilter === 'all') return list
+    return list.filter(l => {
+      const dy = l.draft_year
+      const isRookie = dy != null && dy >= ROOKIE_CUTOFF_YEAR
+      return contractFilter === 'rookie' ? isRookie : !isRookie
+    })
+  }
+
+  // In value mode: rank the full pool by stat per 1% of cap, show top 20
+  const displayLeaders = useMemo(() => {
+    const filtered = applyContractFilter(viewMode === 'stat' ? leaders : (valuePool.length > 0 ? valuePool : leaders))
+
+    if (viewMode === 'stat') return filtered
+    if (salaries.size === 0) return filtered
+
+    return [...filtered]
+      .map(l => {
+        const salary = salaries.get(l.player_id) ?? null
+        const capPct = salary != null ? (salary / NBA_CAP) * 100 : null
+        const efficiency = capPct != null && capPct > 0 ? l.value / capPct : null
+        return { ...l, efficiency, salary, capPct }
+      })
+      .filter(l => l.efficiency != null)
+      .sort((a, b) => (b.efficiency ?? 0) - (a.efficiency ?? 0))
+      .slice(0, 20)
+      .map((l, i) => ({ ...l, rank: i + 1 }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leaders, valuePool, salaries, viewMode, contractFilter])
 
   const statLabel = statCategories.find(c => c.id === stat)?.label ?? stat.toUpperCase()
+  const salariesReady = salaries.size > 0
 
   return (
     <div>
+      {/* Period filter */}
+      <div className="flex items-center gap-1 mb-4 bg-brand-black border border-brand-border rounded-lg p-0.5 self-start w-fit">
+        {(Object.keys(periodLabels) as Period[]).map(p => (
+          <button
+            key={p}
+            onClick={() => setPeriod(p)}
+            className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider rounded-md transition-colors ${
+              period === p
+                ? 'bg-[#fbbf24] text-[#0a0a0f] font-bold'
+                : 'text-[#5a5a64] hover:text-[#e8e6e3]'
+            }`}
+          >
+            {periodLabels[p]}
+          </button>
+        ))}
+      </div>
+
+      {/* Contract filter */}
+      <div className="flex items-center gap-1 mb-4 bg-brand-black border border-brand-border rounded-lg p-0.5 self-start w-fit">
+        {([
+          { id: 'all', label: 'All Contracts' },
+          { id: 'rookie', label: 'Rookie' },
+          { id: 'vet', label: 'Veteran' },
+        ] as { id: ContractFilter; label: string }[]).map(({ id, label }) => (
+          <button
+            key={id}
+            onClick={() => setContractFilter(id)}
+            className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider rounded-md transition-colors ${
+              contractFilter === id
+                ? 'bg-[#fbbf24] text-[#0a0a0f] font-bold'
+                : 'text-[#5a5a64] hover:text-[#e8e6e3]'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* Stat category pills */}
-      <div className="flex flex-wrap gap-1.5 mb-5">
+      <div className="flex flex-wrap gap-1.5 mb-4">
         {statCategories.map(cat => (
           <button
             key={cat.id}
@@ -119,6 +212,40 @@ export function LeagueLeaders({ season, onSelectPlayer }: LeagueLeadersProps) {
         ))}
       </div>
 
+      {/* View mode toggle */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-1 bg-[#0a0a0f] border border-[#1e1e2a] rounded-lg p-0.5">
+          <button
+            onClick={() => setViewMode('stat')}
+            className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider rounded-md transition-colors ${
+              viewMode === 'stat'
+                ? 'bg-[#fbbf24] text-[#0a0a0f] font-bold'
+                : 'text-[#5a5a64] hover:text-[#e8e6e3]'
+            }`}
+          >
+            Stat Leaders
+          </button>
+          <button
+            onClick={() => setViewMode('value')}
+            disabled={!salariesReady}
+            className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider rounded-md transition-colors ${
+              viewMode === 'value'
+                ? 'bg-[#fbbf24] text-[#0a0a0f] font-bold'
+                : !salariesReady
+                ? 'text-[#3a3a44] cursor-not-allowed'
+                : 'text-[#5a5a64] hover:text-[#e8e6e3]'
+            }`}
+          >
+            Cap Value
+          </button>
+        </div>
+        {viewMode === 'value' && (
+          <span className="font-mono text-[10px] text-[#5a5a64]">
+            {statLabel} per 1% of ${NBA_CAP / 1_000_000}M cap
+          </span>
+        )}
+      </div>
+
       {/* Leaders table */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
@@ -126,9 +253,9 @@ export function LeagueLeaders({ season, onSelectPlayer }: LeagueLeadersProps) {
         </div>
       ) : error ? (
         <div className="font-mono text-sm text-red-400 text-center py-8">{error}</div>
-      ) : leaders.length === 0 ? (
+      ) : displayLeaders.length === 0 ? (
         <div className="font-mono text-sm text-[#5a5a64] text-center py-8">
-          No leader data available for this season
+          {viewMode === 'value' ? 'No salary data available to rank by value' : 'No leader data available for this season'}
         </div>
       ) : (
         <div className="border border-[#1e1e2a] rounded-xl overflow-hidden">
@@ -139,13 +266,24 @@ export function LeagueLeaders({ season, onSelectPlayer }: LeagueLeadersProps) {
                 <th className="text-left px-4 py-2.5">Player</th>
                 <th className="text-left px-3 py-2.5 hidden sm:table-cell">Team</th>
                 <th className="text-center px-3 py-2.5">{statLabel}</th>
-                <th className="text-center px-3 py-2.5 hidden sm:table-cell">GP</th>
-                <th className="text-right px-4 py-2.5">Salary</th>
+                {viewMode === 'value' ? (
+                  <>
+                    <th className="text-center px-3 py-2.5 hidden sm:table-cell">Cap %</th>
+                    <th className="text-right px-4 py-2.5 text-[#fbbf24]">{statLabel}/1%</th>
+                  </>
+                ) : (
+                  <>
+                    <th className="text-center px-3 py-2.5 hidden sm:table-cell">GP</th>
+                    <th className="text-right px-4 py-2.5">Salary</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
-              {leaders.map((leader, idx) => {
-                const salary = salaries.get(leader.player_id)
+              {displayLeaders.map((leader, idx) => {
+                const salary = salaries.get(leader.player_id) ?? null
+                const capPct = salary != null ? (salary / NBA_CAP) * 100 : null
+                const efficiency = capPct != null && capPct > 0 ? leader.value / capPct : null
 
                 return (
                   <tr
@@ -177,14 +315,28 @@ export function LeagueLeaders({ season, onSelectPlayer }: LeagueLeadersProps) {
                     <td className="text-center px-3 py-3 font-mono font-bold text-[#fbbf24]">
                       {leader.value.toFixed(1)}
                     </td>
-                    <td className="text-center px-3 py-3 font-mono text-xs text-[#8a8a94] hidden sm:table-cell">
-                      {leader.games_played}
-                    </td>
-                    <td className="text-right px-4 py-3 font-mono text-xs text-[#8a8a94]">
-                      {salaries.size > 0 ? formatSalary(salary) : (
-                        <span className="inline-block w-3 h-3 border-2 border-[#3a3a44] border-t-[#8a8a94] rounded-full animate-spin" />
-                      )}
-                    </td>
+                    {viewMode === 'value' ? (
+                      <>
+                        <td className="text-center px-3 py-3 font-mono text-xs text-[#8a8a94] hidden sm:table-cell">
+                          {capPct != null ? `${capPct.toFixed(1)}%` : '—'}
+                          <span className="block text-[10px] text-[#5a5a64]">{formatSalary(salary)}</span>
+                        </td>
+                        <td className="text-right px-4 py-3 font-mono font-bold text-emerald-400">
+                          {efficiency != null ? efficiency.toFixed(2) : '—'}
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="text-center px-3 py-3 font-mono text-xs text-[#8a8a94] hidden sm:table-cell">
+                          {leader.games_played}
+                        </td>
+                        <td className="text-right px-4 py-3 font-mono text-xs text-[#8a8a94]">
+                          {salariesLoading ? (
+                            <span className="inline-block w-3 h-3 border-2 border-[#3a3a44] border-t-[#8a8a94] rounded-full animate-spin" />
+                          ) : formatSalary(salary)}
+                        </td>
+                      </>
+                    )}
                   </tr>
                 )
               })}
@@ -193,12 +345,13 @@ export function LeagueLeaders({ season, onSelectPlayer }: LeagueLeadersProps) {
         </div>
       )}
 
-      {/* Stat description */}
       <div className="mt-3 text-center">
         <span className="font-mono text-[10px] text-[#3a3a44]">
-          {stat === 'pra' && 'PRA = Points + Rebounds + Assists per game'}
-          {stat === 'stocks' && 'Stocks = Blocks + Steals per game'}
-          {stat !== 'pra' && stat !== 'stocks' && `${statLabel} per game`}
+          {viewMode === 'value'
+            ? `${statLabel}/1% cap — top 20 from ${valuePool.length || leaders.length} players · $${NBA_CAP / 1_000_000}M cap`
+            : stat === 'pra' ? 'PRA = Points + Rebounds + Assists per game'
+            : stat === 'stocks' ? 'Stocks = Blocks + Steals per game'
+            : `${statLabel} per game`}
         </span>
       </div>
     </div>

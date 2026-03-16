@@ -11,21 +11,17 @@ interface ContractResult {
 
 async function fetchPlayerContract(id: string, apiKey: string): Promise<ContractResult> {
   try {
-    const res = await fetch(`${BASE_URL}/player_contracts?player_id=${id}`, {
+    const res = await fetch(`${BASE_URL}/contracts/players?player_id=${id}&per_page=100`, {
       headers: { Authorization: apiKey },
     })
     if (!res.ok) return { player_id: parseInt(id), salary: null }
     const data = await res.json()
-    const contracts = data.data || data
-    if (Array.isArray(contracts) && contracts.length > 0) {
-      const contract = contracts[0]
-      const salary = contract.player_option_amount
-        || contract.salary
-        || contract.amount
-        || contract.value
-      return { player_id: parseInt(id), salary: salary ?? null }
-    }
-    return { player_id: parseInt(id), salary: null }
+    const records: Record<string, number>[] = data.data ?? []
+    if (!records.length) return { player_id: parseInt(id), salary: null }
+    const CURRENT = 2025
+    const current = records.find(r => r.season === CURRENT) ?? records[records.length - 1]
+    const salary = current.base_salary ?? current.cap_hit ?? null
+    return { player_id: parseInt(id), salary }
   } catch {
     return { player_id: parseInt(id), salary: null }
   }

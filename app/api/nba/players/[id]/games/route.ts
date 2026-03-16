@@ -22,11 +22,10 @@ export async function GET(
     const { searchParams } = new URL(request.url)
     const season = parseInt(searchParams.get('season') || String(CURRENT_SEASON), 10)
 
-    // Fetch the most recent games by using date range (last 45 days)
-    // This avoids the pagination issue where page 1 only has early-season games
+    // Fetch the most recent games — 65 day window covers current + previous month
     const endDate = new Date()
     const startDate = new Date()
-    startDate.setDate(startDate.getDate() - 45)
+    startDate.setDate(startDate.getDate() - 65)
 
     const cacheKey = `player-games-${playerId}-${season}-${formatDate(endDate)}`
 
@@ -37,7 +36,7 @@ export async function GET(
       url.searchParams.set('seasons[]', String(season))
       url.searchParams.set('start_date', formatDate(startDate))
       url.searchParams.set('end_date', formatDate(endDate))
-      url.searchParams.set('per_page', '25')
+      url.searchParams.set('per_page', '40')
 
       const res = await fetch(url.toString(), {
         headers: { Authorization: apiKey },
