@@ -109,10 +109,13 @@ function pickRandomPlayers(
   return shuffled.slice(0, count);
 }
 
+const STAR_POOL_PCT: Record<number, number> = { 1: 0.10, 2: 0.30, 3: 1.0 }
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const mode = searchParams.get("mode");
+    const stars = Math.min(3, Math.max(1, parseInt(searchParams.get("stars") || "1", 10)));
 
     if (mode !== "pra" && mode !== "stocks") {
       return NextResponse.json(
@@ -121,9 +124,14 @@ export async function GET(request: Request) {
       );
     }
 
-    const pool = await cached(`trivia-stat-${mode}`, TTL.DAY, () =>
+    const fullPool = await cached(`trivia-stat-${mode}`, TTL.DAY, () =>
       buildPool(mode),
     );
+
+    // Slice pool based on star difficulty (pool is already sorted highest→lowest)
+    const pct = STAR_POOL_PCT[stars];
+    const cutoff = Math.max(5, Math.ceil(fullPool.length * pct));
+    const pool = fullPool.slice(0, cutoff);
 
     if (pool.length < 5) {
       return NextResponse.json(
@@ -145,7 +153,7 @@ export async function GET(request: Request) {
       players.map((p) => [p.id, { value: p.value }]),
     );
 
-    return NextResponse.json({ players: clientPlayers, answers });
+    return NextResponse.json({ players: clientPlayers, answers, stars, bucksPerCorrect: stars });
   } catch (error) {
     console.error("Stat ranking trivia error:", error);
     return NextResponse.json(

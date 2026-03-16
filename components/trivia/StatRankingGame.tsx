@@ -22,6 +22,15 @@ interface StatRankingGameProps {
   onBack?: () => void
 }
 
+const STAR_LABELS = ['', '★', '★★', '★★★'] as const
+const STAR_DESCRIPTIONS = [
+  '',
+  'Top 10% of players — the household names.',
+  'Top 30% of players — solid starters and stars.',
+  'Any eligible player — who really knows their stuff?',
+]
+const STAR_POOL_LABEL = ['', 'Top 10%', 'Top 30%', 'All Players']
+
 export function StatRankingGame({
   mode,
   title,
@@ -32,20 +41,23 @@ export function StatRankingGame({
 }: StatRankingGameProps) {
   const { user } = useAuth()
   const [state, setState] = useState<GameState>('idle')
+  const [stars, setStars] = useState<1 | 2 | 3>(1)
   const [orderedPlayers, setOrderedPlayers] = useState<SortablePlayer[]>([])
   const [answers, setAnswers] = useState<Record<number, StatAnswer>>({})
   const [submittedOrder, setSubmittedOrder] = useState<SortablePlayer[]>([])
   const [score, setScore] = useState(0)
   const [bucksEarned, setBucksEarned] = useState(0)
+  const [bucksPerCorrect, setBucksPerCorrect] = useState(1)
 
-  const fetchPlayers = useCallback(async () => {
+  const fetchPlayers = useCallback(async (selectedStars: 1 | 2 | 3) => {
     setState('loading')
     try {
-      const res = await fetch(`/api/trivia/stat-ranking?mode=${mode}`)
+      const res = await fetch(`/api/trivia/stat-ranking?mode=${mode}&stars=${selectedStars}`)
       if (!res.ok) throw new Error('Failed to load')
       const data = await res.json()
       setOrderedPlayers(data.players)
       setAnswers(data.answers)
+      setBucksPerCorrect(data.bucksPerCorrect ?? selectedStars)
       setSubmittedOrder([])
       setScore(0)
       setBucksEarned(0)
@@ -57,7 +69,6 @@ export function StatRankingGame({
   }, [mode])
 
   const handleSubmit = () => {
-    // Correct order: highest stat value first
     const correctOrder = [...orderedPlayers].sort(
       (a, b) => answers[b.id].value - answers[a.id].value
     )
@@ -67,16 +78,14 @@ export function StatRankingGame({
     for (let i = 0; i < orderedPlayers.length; i++) {
       if (orderedPlayers[i].id === correctIds[i]) correct++
     }
+    const earned = correct * bucksPerCorrect
     setSubmittedOrder([...orderedPlayers])
     setScore(correct)
-    setBucksEarned(correct)
+    setBucksEarned(earned)
     setState('results')
 
-    // Credit bucks for correct answers
-    if (correct > 0 && user) {
-      creditBucks(user.uid, correct).catch(() => {
-        // Silently fail — bucks crediting is best-effort
-      })
+    if (earned > 0 && user) {
+      creditBucks(user.uid, earned).catch(() => {})
     }
   }
 
@@ -93,13 +102,11 @@ export function StatRankingGame({
       : score >= 3
       ? 'Not bad... but can you beat it?'
       : 'I need backup. Pull up and try this.'
-    const text = `${title} ${score}/5\n${squares}\n\n${taunt}\nthe-un-official.com/trivia`
-    navigator.clipboard.writeText(text).then(() => {
-      toast.success('Copied to clipboard!')
-    })
+    const text = `${title} ${STAR_LABELS[stars]} ${score}/5\n${squares}\n\n${taunt}\nthe-un-official.com/trivia`
+    navigator.clipboard.writeText(text).then(() => toast.success('Copied to clipboard!'))
   }
 
-  // --- Idle / Start Screen ---
+  // --- Idle / Star Selection ---
   if (state === 'idle' || state === 'loading') {
     return (
       <div className="flex flex-col items-center justify-center text-center py-16 px-4">
@@ -120,8 +127,46 @@ export function StatRankingGame({
         <p className="text-[#8a8a94] text-sm sm:text-base max-w-md mb-8 leading-relaxed">
           {description}
         </p>
+
+        {/* Star difficulty selector */}
+        <div className="w-full max-w-sm mb-8">
+          <p className="font-mono text-[10px] text-[#5a5a64] uppercase tracking-wider mb-3">
+            Choose Difficulty
+          </p>
+          <div className="space-y-2">
+            {([1, 2, 3] as const).map(s => (
+              <button
+                key={s}
+                onClick={() => setStars(s)}
+                className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${
+                  stars === s
+                    ? 'border-[#fbbf24] bg-[#fbbf24]/10'
+                    : 'border-[#1e1e2a] bg-[#111118] hover:border-[#fbbf24]/40'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={`font-mono font-bold text-sm tracking-wide ${stars === s ? 'text-[#fbbf24]' : 'text-[#8a8a94]'}`}>
+                    {STAR_LABELS[s]}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] text-[#5a5a64]">
+                      {STAR_POOL_LABEL[s]}
+                    </span>
+                    <span className={`font-mono text-[10px] font-bold ${stars === s ? 'text-[#fbbf24]' : 'text-[#5a5a64]'}`}>
+                      {s} Buck{s !== 1 ? 's' : ''} / correct
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[#5a5a64] text-[11px] mt-0.5">
+                  {STAR_DESCRIPTIONS[s]}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <button
-          onClick={fetchPlayers}
+          onClick={() => fetchPlayers(stars)}
           disabled={state === 'loading'}
           className="px-8 py-3 font-mono font-bold text-sm rounded-lg bg-[#fbbf24] text-[#0a0a0f] hover:bg-[#f59e0b] transition-colors disabled:opacity-60 disabled:cursor-wait"
         >
@@ -144,11 +189,17 @@ export function StatRankingGame({
           </button>
         )}
         <div className="text-center mb-6">
-          <h2 className="font-mono font-bold text-[#e8e6e3] text-lg sm:text-xl mb-1">
-            Rank by {statLabel}
-          </h2>
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <h2 className="font-mono font-bold text-[#e8e6e3] text-lg sm:text-xl">
+              Rank by {statLabel}
+            </h2>
+            <span className="font-mono text-sm text-[#fbbf24]">{STAR_LABELS[stars]}</span>
+          </div>
           <p className="text-[#8a8a94] text-xs sm:text-sm">
             Drag players to reorder — highest {statLabel} first
+          </p>
+          <p className="text-[#5a5a64] font-mono text-[10px] mt-1">
+            {bucksPerCorrect} Buck{bucksPerCorrect !== 1 ? 's' : ''} per correct position
           </p>
         </div>
 
@@ -183,8 +234,11 @@ export function StatRankingGame({
         </button>
       )}
       <div className="text-center mb-6">
-        <div className="font-mono font-bold text-3xl sm:text-4xl text-[#fbbf24] mb-1">
-          {score}/5
+        <div className="flex items-center justify-center gap-2 mb-1">
+          <div className="font-mono font-bold text-3xl sm:text-4xl text-[#fbbf24]">
+            {score}/5
+          </div>
+          <span className="font-mono text-xl text-[#fbbf24]">{STAR_LABELS[stars]}</span>
         </div>
         <p className="text-[#8a8a94] text-sm">
           {score === 5
@@ -226,14 +280,11 @@ export function StatRankingGame({
               >
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center font-mono text-sm font-bold flex-shrink-0 ${
-                    isCorrect
-                      ? 'bg-emerald-500 text-[#0a0a0f]'
-                      : 'bg-red-500 text-[#0a0a0f]'
+                    isCorrect ? 'bg-emerald-500 text-[#0a0a0f]' : 'bg-red-500 text-[#0a0a0f]'
                   }`}
                 >
                   {idx + 1}
                 </div>
-
                 <div className="flex-1 min-w-0">
                   <div className="font-mono font-bold text-[#e8e6e3] text-sm sm:text-base truncate">
                     {player.name}
@@ -242,10 +293,9 @@ export function StatRankingGame({
                     {answer.value} {statLabel} &middot; {player.team}
                   </div>
                 </div>
-
                 <div className="text-right flex-shrink-0">
                   <span className={`font-mono text-xs ${isCorrect ? 'text-emerald-400' : 'text-red-400'}`}>
-                    You: {userRankIndex + 1}
+                    You: #{userRankIndex + 1}
                   </span>
                 </div>
               </div>
@@ -256,7 +306,7 @@ export function StatRankingGame({
 
       <div className="flex items-center justify-center gap-3 mt-8">
         <button
-          onClick={fetchPlayers}
+          onClick={() => fetchPlayers(stars)}
           className="px-8 py-3 font-mono font-bold text-sm rounded-lg bg-[#fbbf24] text-[#0a0a0f] hover:bg-[#f59e0b] transition-colors"
         >
           Play Again
