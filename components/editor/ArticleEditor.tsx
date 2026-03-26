@@ -59,11 +59,11 @@ export function ArticleEditor({ editId }: ArticleEditorProps) {
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
 
-  // Auto-save
+  // Auto-save (preserves current status)
   useEffect(() => {
     if (!editId) return
     const interval = setInterval(() => {
-      handleSave('draft', true)
+      handleSave(status, true)
     }, 60_000)
     return () => clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -92,21 +92,24 @@ export function ArticleEditor({ editId }: ArticleEditorProps) {
   }, [editId])
 
   const buildData = useCallback(
-    (overrideStatus?: typeof status): Partial<ArticleDoc> => ({
-      title: title || 'Untitled',
-      content,
-      tags: tags.split(',').map(t => t.trim()).filter(Boolean),
-      series: (series as ArticleDoc['series']) || null,
-      status: overrideStatus || status,
-      featured,
-      tweetPreview: tweetPreview || undefined,
-      coverImageUrl: coverImageUrl || undefined,
-      audioUrl: audioUrl || undefined,
-      scheduledAt:
-        status === 'scheduled' && scheduledAt
-          ? Timestamp.fromDate(new Date(scheduledAt))
-          : null,
-    }),
+    (overrideStatus?: typeof status): Partial<ArticleDoc> => {
+      const data: Partial<ArticleDoc> = {
+        title: title || 'Untitled',
+        content,
+        tags: tags.split(',').map(t => t.trim()).filter(Boolean),
+        series: (series as ArticleDoc['series']) || null,
+        status: overrideStatus || status,
+        featured,
+        scheduledAt:
+          status === 'scheduled' && scheduledAt
+            ? Timestamp.fromDate(new Date(scheduledAt))
+            : null,
+      }
+      if (tweetPreview) data.tweetPreview = tweetPreview
+      if (coverImageUrl) data.coverImageUrl = coverImageUrl
+      if (audioUrl) data.audioUrl = audioUrl
+      return data
+    },
     [title, content, tags, series, status, featured, tweetPreview, coverImageUrl, audioUrl, scheduledAt]
   )
 
@@ -186,33 +189,58 @@ export function ArticleEditor({ editId }: ArticleEditorProps) {
       <aside className="w-72 flex-shrink-0 border-l border-[#1e1e2a] p-5 flex flex-col gap-5 overflow-y-auto sticky top-0 h-screen">
         {/* Publish actions */}
         <div className="flex flex-col gap-2">
-          <Button
-            onClick={() => handleSave('draft')}
-            variant="ghost"
-            size="sm"
-            loading={saving}
-            className="w-full justify-start"
-          >
-            Save Draft
-          </Button>
-          <Button
-            onClick={() => handleSave('scheduled')}
-            variant="secondary"
-            size="sm"
-            loading={saving}
-            className="w-full"
-          >
-            Schedule
-          </Button>
-          <Button
-            onClick={() => handleSave('published')}
-            variant="primary"
-            size="sm"
-            loading={saving}
-            className="w-full"
-          >
-            Publish Now
-          </Button>
+          {status === 'published' ? (
+            <>
+              <Button
+                onClick={() => handleSave('published')}
+                variant="primary"
+                size="sm"
+                loading={saving}
+                className="w-full"
+              >
+                Update Article
+              </Button>
+              <Button
+                onClick={() => handleSave('draft')}
+                variant="ghost"
+                size="sm"
+                loading={saving}
+                className="w-full justify-start text-red-400 hover:text-red-300"
+              >
+                Unpublish
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                onClick={() => handleSave('draft')}
+                variant="ghost"
+                size="sm"
+                loading={saving}
+                className="w-full justify-start"
+              >
+                Save Draft
+              </Button>
+              <Button
+                onClick={() => handleSave('scheduled')}
+                variant="secondary"
+                size="sm"
+                loading={saving}
+                className="w-full"
+              >
+                Schedule
+              </Button>
+              <Button
+                onClick={() => handleSave('published')}
+                variant="primary"
+                size="sm"
+                loading={saving}
+                className="w-full"
+              >
+                Publish Now
+              </Button>
+            </>
+          )}
         </div>
 
         <div className="h-px bg-[#1e1e2a]" />

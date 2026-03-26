@@ -26,39 +26,31 @@ interface RawLeader {
 
 type TeamInfo = { id: number; abbreviation: string; full_name: string };
 
-async function getTeamsMap(): Promise<Map<number, string>> {
-  const teams = await cached<TeamInfo[]>("teams-list", TTL.DAY, async () => {
-    const apiKey = getApiKey();
-    const res = await fetch(`${BASE_URL}/teams`, {
-      headers: { Authorization: apiKey },
-    });
-    if (!res.ok) throw new Error(`Teams API returned ${res.status}`);
-    const json = await res.json();
-    return json.data ?? json;
-  });
-  const map = new Map<number, string>();
-  for (const t of teams) map.set(t.id, t.full_name);
-  return map;
-}
-
-function fetchLeaders(statType: string): Promise<RawLeader[]> {
-  return cached(`leaders-trivia-${statType}-${CURRENT_SEASON}`, TTL.DAY, async () => {
-    const apiKey = getApiKey();
-    const res = await fetch(
-      `${BASE_URL}/leaders?stat_type=${statType}&season=${CURRENT_SEASON}`,
-      { headers: { Authorization: apiKey } },
-    );
-    if (!res.ok) throw new Error(`Leaders API returned ${res.status}`);
-    const json = await res.json();
-    return json.data ?? json;
-  });
-}
-
 async function buildPool(mode: "pra" | "stocks"): Promise<TriviaStatPlayer[]> {
+  const apiKey = getApiKey();
   const statTypes = mode === "pra" ? ["pts", "reb", "ast"] : ["blk", "stl"];
 
-  const leaderLists = await Promise.all(statTypes.map((st) => fetchLeaders(st)));
-  const teams = await getTeamsMap();
+  // Fetch leaders and teams directly — no nested cached() calls inside the outer cache
+  const [leaderLists, teamsRes] = await Promise.all([
+    Promise.all(
+      statTypes.map(async (st) => {
+        const res = await fetch(
+          `${BASE_URL}/leaders?stat_type=${st}&season=${CURRENT_SEASON}`,
+          { headers: { Authorization: apiKey } },
+        );
+        if (!res.ok) throw new Error(`Leaders API returned ${res.status} for ${st}`);
+        const json = await res.json();
+        return (json.data ?? json) as RawLeader[];
+      }),
+    ),
+    fetch(`${BASE_URL}/teams`, { headers: { Authorization: apiKey } }),
+  ]);
+
+  if (!teamsRes.ok) throw new Error(`Teams API returned ${teamsRes.status}`);
+  const teamsJson = await teamsRes.json();
+  const teamsArr: TeamInfo[] = teamsJson.data ?? teamsJson;
+  const teams = new Map<number, string>();
+  for (const t of teamsArr) teams.set(t.id, t.full_name);
 
   // Sum component values per player (same approach as leaders route)
   const playerMap = new Map<
