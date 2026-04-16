@@ -9,6 +9,7 @@ import {
   type BriefArticleType,
   type BriefDoc,
   type ValuePlay,
+  type ResidueItem,
 } from "@/lib/firestore";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -54,9 +55,9 @@ const TABS: BriefTab[] = [
     badge: "green",
     schedule: "Every Friday",
     color: "#10b981",
-    playsLabel: "Under the Radar",
+    playsLabel: "What's Left Behind",
     spirit:
-      "The long-form essay. One subject, examined slowly. Pick a player, a team, a moment, or a trend from the week and go deep. This isn't news — it's what the news means. Extended metaphors welcome. Digressions that earn their length welcome. Genuine feeling about the game welcome. Give the reader something they couldn't get from a box score or a beat reporter.",
+      "The long-form essay. One subject, examined slowly. Pick a player, a team, a coaching moment, or a trend from the week and go deep. This isn't news — it's what the news means. Browse the items below — players, teams, coaching decisions, trends, and league-wide stories — and find the one that deserves 2,000 words.",
   },
   {
     type: "picks_pops_rolls",
@@ -446,7 +447,7 @@ function BriefView({
         </div>
       </section>
 
-      {/* Plays */}
+      {/* Items */}
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-mono font-bold text-sm text-[#e8e6e3] uppercase tracking-widest">
@@ -458,41 +459,52 @@ function BriefView({
             </span>
           )}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {brief.content.topValuePlays.map((play, i) => (
-            <PlayCard
-              key={`${play.playerId}-${i}`}
-              play={play}
-              tab={tab}
-              onExpand={() => onExpand(play)}
-              selectable={selectable}
-              selected={selectedPlays.has(play.playerId)}
-              onToggle={() => onTogglePlay(play.playerId)}
-            />
-          ))}
-        </div>
-        {selectable && selectedPlays.size > 0 && (
-          <div className="sticky bottom-0 mt-4 p-4 bg-[#111118] border border-[#1e1e2a] rounded-xl flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-mono text-[#e8e6e3]">
-                {selectedPlays.size} selected
-              </span>
-              <button
-                onClick={onClearSelection}
-                className="text-xs font-mono text-[#5a5a64] hover:text-[#e8e6e3] transition-colors cursor-pointer"
-              >
-                Clear
-              </button>
-            </div>
-            <button
-              onClick={onReframe}
-              disabled={selectedPlays.size < 3 || selectedPlays.size > 5}
-              className="px-4 py-2 text-sm font-mono font-bold rounded-lg transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed text-[#0a0a0f]"
-              style={{ backgroundColor: tab.color }}
-            >
-              Reframe Selected
-            </button>
+
+        {brief.content.residueItems && brief.content.residueItems.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {brief.content.residueItems.map((item, i) => (
+              <ResidueCard key={`${item.subject}-${i}`} item={item} tab={tab} />
+            ))}
           </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {brief.content.topValuePlays.map((play, i) => (
+                <PlayCard
+                  key={`${play.playerId}-${i}`}
+                  play={play}
+                  tab={tab}
+                  onExpand={() => onExpand(play)}
+                  selectable={selectable}
+                  selected={selectedPlays.has(play.playerId)}
+                  onToggle={() => onTogglePlay(play.playerId)}
+                />
+              ))}
+            </div>
+            {selectable && selectedPlays.size > 0 && (
+              <div className="sticky bottom-0 mt-4 p-4 bg-[#111118] border border-[#1e1e2a] rounded-xl flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-mono text-[#e8e6e3]">
+                    {selectedPlays.size} selected
+                  </span>
+                  <button
+                    onClick={onClearSelection}
+                    className="text-xs font-mono text-[#5a5a64] hover:text-[#e8e6e3] transition-colors cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <button
+                  onClick={onReframe}
+                  disabled={selectedPlays.size < 3 || selectedPlays.size > 5}
+                  className="px-4 py-2 text-sm font-mono font-bold rounded-lg transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed text-[#0a0a0f]"
+                  style={{ backgroundColor: tab.color }}
+                >
+                  Reframe Selected
+                </button>
+              </div>
+            )}
+          </>
         )}
       </section>
 
@@ -654,6 +666,63 @@ function PlayCard({
       >
         Expand this angle →
       </Button>
+    </div>
+  );
+}
+
+const CATEGORY_STYLE: Record<string, { label: string; color: string }> = {
+  player: { label: "Player", color: "#10b981" },
+  team: { label: "Team", color: "#3b82f6" },
+  coaching: { label: "Coaching", color: "#f97316" },
+  trend: { label: "Trend", color: "#a855f7" },
+  league: { label: "League", color: "#fbbf24" },
+};
+
+function ResidueCard({ item, tab }: { item: ResidueItem; tab: BriefTab }) {
+  const cat = CATEGORY_STYLE[item.category] ?? CATEGORY_STYLE.trend;
+
+  return (
+    <div
+      className="border border-[#1e1e2a] bg-[#111118] rounded-xl p-5 flex flex-col gap-3 transition-colors"
+      onMouseEnter={(e) =>
+        (e.currentTarget.style.borderColor = `${tab.color}66`)
+      }
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#1e1e2a")}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="font-mono font-bold text-[#e8e6e3] leading-snug">
+            {item.title}
+          </div>
+          <div className="font-mono text-xs text-[#5a5a64] uppercase tracking-widest mt-1">
+            {item.subject}
+            {item.team && ` · ${item.team}`}
+          </div>
+        </div>
+        <span
+          className="shrink-0 px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-widest rounded"
+          style={{
+            color: cat.color,
+            backgroundColor: `${cat.color}15`,
+            border: `1px solid ${cat.color}30`,
+          }}
+        >
+          {cat.label}
+        </span>
+      </div>
+
+      {item.dataPoint && (
+        <div
+          className="text-sm font-mono font-bold"
+          style={{ color: tab.color }}
+        >
+          {item.dataPoint}
+        </div>
+      )}
+
+      <p className="text-xs text-[#8a8a94] leading-relaxed">
+        {item.contextNote}
+      </p>
     </div>
   );
 }

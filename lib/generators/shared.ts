@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { PlayerSnapshot } from '../balldontlie'
-import type { BriefContent, ValuePlay } from '../firestore'
+import type { BriefContent, ValuePlay, ResidueItem, ResidueCategory } from '../firestore'
 
 const MODEL = 'claude-haiku-4-5'
 const EXPAND_MODEL = 'claude-haiku-4-5'
@@ -139,6 +139,60 @@ export function validateBrief(
   }
 }
 
+const VALID_RESIDUE_CATEGORIES = new Set<ResidueCategory>([
+  'player', 'team', 'coaching', 'trend', 'league',
+])
+
+export function validateResidueBrief(raw: unknown): BriefContent {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('Brief response was not a JSON object')
+  }
+  const r = raw as Record<string, unknown>
+  if (typeof r.narrativeHook !== 'string') {
+    throw new Error('Brief missing narrativeHook')
+  }
+  if (!Array.isArray(r.residueItems) || r.residueItems.length < 10) {
+    throw new Error('Brief needs at least 10 residueItems')
+  }
+
+  const residueItems: ResidueItem[] = (
+    r.residueItems as Array<Record<string, unknown>>
+  ).map((item, i) => {
+    if (!item || typeof item !== 'object') {
+      throw new Error(`residueItems[${i}] is not an object`)
+    }
+    const cat = String(item.category ?? 'trend')
+    return {
+      category: (VALID_RESIDUE_CATEGORIES.has(cat as ResidueCategory)
+        ? cat
+        : 'trend') as ResidueCategory,
+      title: String(item.title ?? ''),
+      subject: String(item.subject ?? ''),
+      team: typeof item.team === 'string' ? item.team : null,
+      contextNote: String(item.contextNote ?? ''),
+      dataPoint: typeof item.dataPoint === 'string' ? item.dataPoint : null,
+      playerId: typeof item.playerId === 'number' ? item.playerId : null,
+    }
+  })
+
+  const tweetableBlurbs = Array.isArray(r.tweetableBlurbs)
+    ? (r.tweetableBlurbs as unknown[]).filter(
+        (s): s is string => typeof s === 'string',
+      )
+    : []
+
+  return {
+    narrativeHook: r.narrativeHook as string,
+    topValuePlays: [],
+    dataAnomalies: Array.isArray(r.dataAnomalies)
+      ? (r.dataAnomalies as unknown[]).filter((s): s is string => typeof s === 'string')
+      : [],
+    injuryContext: typeof r.injuryContext === 'string' ? (r.injuryContext as string) : '',
+    tweetableBlurbs,
+    residueItems,
+  }
+}
+
 interface GenerateBriefOptions {
   systemPrompt: string
   userMessage: string
@@ -147,11 +201,12 @@ interface GenerateBriefOptions {
 }
 
 /**
- * Shared generator: calls Claude (no web search — keeps cost low), extracts JSON, validates.
+ * Calls Claude and returns the parsed JSON from the response.
  */
-export async function generateBrief(
-  opts: GenerateBriefOptions,
-): Promise<BriefContent> {
+export async function callGenerator(opts: {
+  systemPrompt: string
+  userMessage: string
+}): Promise<unknown> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY is not configured')
@@ -178,7 +233,16 @@ export async function generateBrief(
     throw new Error('Claude returned no text content')
   }
 
-  const parsed = extractJson(text)
+  return extractJson(text)
+}
+
+/**
+ * Shared generator: calls Claude, extracts JSON, validates as standard brief.
+ */
+export async function generateBrief(
+  opts: GenerateBriefOptions,
+): Promise<BriefContent> {
+  const parsed = await callGenerator(opts)
   return validateBrief(parsed, opts.snapshots, opts.playsRange)
 }
 

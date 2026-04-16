@@ -90,12 +90,25 @@ export interface ValuePlay {
   contextNote: string;
 }
 
+export type ResidueCategory = 'player' | 'team' | 'coaching' | 'trend' | 'league';
+
+export interface ResidueItem {
+  category: ResidueCategory;
+  title: string;
+  subject: string;
+  team: string | null;
+  contextNote: string;
+  dataPoint: string | null;
+  playerId: number | null;
+}
+
 export interface BriefContent {
   topValuePlays: ValuePlay[];
   narrativeHook: string;
   dataAnomalies: string[];
   injuryContext: string;
   tweetableBlurbs: string[];
+  residueItems?: ResidueItem[];
 }
 
 export interface BriefDoc {
