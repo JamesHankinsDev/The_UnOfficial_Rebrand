@@ -80,6 +80,12 @@ export function Footer() {
               ☕ Tip the UnOfficial
             </a>
             <a
+              href="/feed.xml"
+              className="text-xs font-mono text-[#5a5a64] hover:text-[#fbbf24] transition-colors"
+            >
+              RSS
+            </a>
+            <a
               href="https://twitter.com/TheUnOfficial"
               target="_blank"
               rel="noopener noreferrer"
