@@ -3,7 +3,7 @@ import type { BriefContent } from "../firestore";
 import {
   generateBrief,
   buildSnapshotPayload,
-  JSON_SCHEMA_INSTRUCTION,
+  jsonSchemaInstruction,
 } from "./shared";
 
 const SYSTEM_PROMPT = `You are the data engine for The UnOfficial's Picks, Pops & Rolls column.
@@ -26,7 +26,7 @@ ROLL — find the most likely disappointment:
 
 Flag any injury or lineup situations the writer should verify before publishing — note where the data assumes a player is active but their status may be uncertain.
 
-${JSON_SCHEMA_INSTRUCTION}`;
+${jsonSchemaInstruction()}`;
 
 export async function generatePicksPopsBrief(
   snapshots: PlayerSnapshot[],

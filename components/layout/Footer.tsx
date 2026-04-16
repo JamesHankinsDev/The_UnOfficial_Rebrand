@@ -54,6 +54,18 @@ export function Footer() {
             </div>
           </div>
         </div>
+        <div className="mt-8 pt-8 border-t border-[#1e1e2a]">
+          <div className="font-mono text-xs tracking-widest text-[#5a5a64] uppercase mb-3">
+            AI Disclaimer
+          </div>
+          <p className="text-sm text-[#5a5a64] leading-relaxed max-w-3xl">
+            The UnOfficial is a one-person operation — I write every article, run every analysis, and
+            make every editorial call. I do use AI tools to assist with <span className="text-[#8a8a94]">site
+            development, research, and editing</span>. AI never writes the articles, chooses the
+            narratives, or decides what gets published. The voice, opinions, and analysis are always
+            human.
+          </p>
+        </div>
         <div className="mt-8 pt-8 border-t border-[#1e1e2a] flex flex-col sm:flex-row justify-between items-center gap-3">
           <p className="text-xs font-mono text-[#5a5a64]">
             © {new Date().getFullYear()} The UnOfficial. All rights reserved.

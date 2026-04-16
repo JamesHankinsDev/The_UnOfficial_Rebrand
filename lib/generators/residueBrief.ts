@@ -3,7 +3,7 @@ import type { BriefContent } from "../firestore";
 import {
   generateBrief,
   buildSnapshotPayload,
-  JSON_SCHEMA_INSTRUCTION,
+  jsonSchemaInstruction,
 } from "./shared";
 
 const SYSTEM_PROMPT = `You are the data engine for The UnOfficial's Friday Residue column.
@@ -18,7 +18,7 @@ Pull: full season stats, last 10 game log, team record with/without this player,
 
 Note the likely mainstream narratives the writer should check so the column can engage with or push back against the conventional take.
 
-${JSON_SCHEMA_INSTRUCTION}`;
+${jsonSchemaInstruction()}`;
 
 export async function generateResidueBrief(
   snapshots: PlayerSnapshot[],

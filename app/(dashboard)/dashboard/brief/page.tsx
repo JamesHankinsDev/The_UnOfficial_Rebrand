@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   getLatestBrief,
   getLatestBriefForType,
@@ -94,6 +96,13 @@ export default function BriefPage() {
   const [expansionLoading, setExpansionLoading] = useState(false);
   const [expansionError, setExpansionError] = useState("");
 
+  // Mix Tape reframe selection
+  const [selectedPlays, setSelectedPlays] = useState<Set<number>>(new Set());
+  const [reframeText, setReframeText] = useState("");
+  const [reframeLoading, setReframeLoading] = useState(false);
+  const [reframeError, setReframeError] = useState("");
+  const [reframeOpen, setReframeOpen] = useState(false);
+
   const tab = TABS.find((t) => t.type === activeTab) ?? TABS[0];
 
   // On first load, fetch the most recent brief across all types and set the tab to match.
@@ -121,6 +130,10 @@ export default function BriefPage() {
   // Skip if the initial load already provided the right brief.
   useEffect(() => {
     if (!initialized || activeTab == null) return;
+    setSelectedPlays(new Set());
+    setReframeText("");
+    setReframeError("");
+    setReframeOpen(false);
     if (brief?.articleType === activeTab) return;
     setLoading(true);
     setError("");
@@ -165,6 +178,62 @@ export default function BriefPage() {
     setExpansionText("");
     setExpansionError("");
   }
+
+  function togglePlay(playerId: number) {
+    setSelectedPlays((prev) => {
+      const next = new Set(prev);
+      if (next.has(playerId)) {
+        next.delete(playerId);
+      } else if (next.size < 5) {
+        next.add(playerId);
+      }
+      return next;
+    });
+  }
+
+  async function handleReframe() {
+    if (!brief) return;
+    const plays = brief.content.topValuePlays.filter((p) =>
+      selectedPlays.has(p.playerId),
+    );
+    if (plays.length < 3 || plays.length > 5) return;
+
+    setReframeOpen(true);
+    setReframeText("");
+    setReframeError("");
+    setReframeLoading(true);
+
+    try {
+      const res = await fetch("/api/generate-brief/reframe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plays,
+          narrativeHook: brief.content.narrativeHook,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Request failed (${res.status})`);
+      }
+      const body = await res.json();
+      setReframeText(body.text ?? "");
+    } catch (err) {
+      setReframeError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setReframeLoading(false);
+    }
+  }
+
+  function closeReframe() {
+    setReframeOpen(false);
+    setReframeText("");
+    setReframeError("");
+  }
+
+  const isMixTape = activeTab === "mix_tape";
+  const selectable =
+    isMixTape && brief != null && brief.content.topValuePlays.length >= 3;
 
   return (
     <div className="p-8 max-w-5xl">
@@ -222,7 +291,16 @@ export default function BriefPage() {
           body={`The ${tab.label} brief hasn't been generated yet. It will appear here after the next scheduled run.`}
         />
       ) : (
-        <BriefView brief={brief} tab={tab} onExpand={openExpand} />
+        <BriefView
+          brief={brief}
+          tab={tab}
+          onExpand={openExpand}
+          selectable={selectable}
+          selectedPlays={selectedPlays}
+          onTogglePlay={togglePlay}
+          onReframe={handleReframe}
+          onClearSelection={() => setSelectedPlays(new Set())}
+        />
       )}
 
       {/* Expand modal */}
@@ -240,8 +318,44 @@ export default function BriefPage() {
             {expansionError}
           </div>
         ) : (
-          <div className="whitespace-pre-wrap text-sm text-[#e8e6e3] leading-relaxed max-h-[60vh] overflow-y-auto">
-            {expansionText}
+          <div className="prose prose-invert prose-sm max-w-none max-h-[60vh] overflow-y-auto [&>p]:my-2 [&>ul]:my-2 [&>ol]:my-2 [&>h1]:mt-4 [&>h1]:mb-2 [&>h2]:mt-3 [&>h2]:mb-1 [&>h3]:mt-3 [&>h3]:mb-1 [&>blockquote]:my-2">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {expansionText}
+            </ReactMarkdown>
+          </div>
+        )}
+      </Modal>
+
+      {/* Reframe modal */}
+      <Modal
+        open={reframeOpen}
+        onClose={closeReframe}
+        title={`Mix Tape Reframe — ${selectedPlays.size} Tracks`}
+        size="lg"
+      >
+        {reframeLoading ? (
+          <div className="py-8 text-center font-mono text-sm text-[#5a5a64] animate-pulse">
+            Claude is writing…
+          </div>
+        ) : reframeError ? (
+          <div className="py-4 font-mono text-sm text-red-400">
+            {reframeError}
+          </div>
+        ) : (
+          <div>
+            <div className="prose prose-invert prose-sm max-w-none max-h-[60vh] overflow-y-auto [&>p]:my-2 [&>ul]:my-2 [&>ol]:my-2 [&>h1]:mt-4 [&>h1]:mb-2 [&>h2]:mt-3 [&>h2]:mb-1 [&>h3]:mt-3 [&>h3]:mb-1 [&>blockquote]:my-2">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {reframeText}
+              </ReactMarkdown>
+            </div>
+            {reframeText && (
+              <button
+                onClick={() => navigator.clipboard.writeText(reframeText)}
+                className="mt-4 text-xs font-mono text-[#5a5a64] hover:text-[#e8e6e3] transition-colors cursor-pointer"
+              >
+                Copy to clipboard
+              </button>
+            )}
           </div>
         )}
       </Modal>
@@ -282,10 +396,20 @@ function BriefView({
   brief,
   tab,
   onExpand,
+  selectable,
+  selectedPlays,
+  onTogglePlay,
+  onReframe,
+  onClearSelection,
 }: {
   brief: BriefDoc;
   tab: BriefTab;
   onExpand: (play: ValuePlay) => void;
+  selectable: boolean;
+  selectedPlays: Set<number>;
+  onTogglePlay: (playerId: number) => void;
+  onReframe: () => void;
+  onClearSelection: () => void;
 }) {
   const generatedDate = brief.generatedAt.toDate();
   const generatedLabel = new Intl.DateTimeFormat("en-US", {
@@ -324,9 +448,16 @@ function BriefView({
 
       {/* Plays */}
       <section>
-        <h2 className="font-mono font-bold text-sm text-[#e8e6e3] uppercase tracking-widest mb-3">
-          {tab.playsLabel}
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-mono font-bold text-sm text-[#e8e6e3] uppercase tracking-widest">
+            {tab.playsLabel}
+          </h2>
+          {selectable && (
+            <span className="text-xs font-mono text-[#5a5a64]">
+              Select 3-5 tracks to reframe
+            </span>
+          )}
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {brief.content.topValuePlays.map((play, i) => (
             <PlayCard
@@ -334,9 +465,35 @@ function BriefView({
               play={play}
               tab={tab}
               onExpand={() => onExpand(play)}
+              selectable={selectable}
+              selected={selectedPlays.has(play.playerId)}
+              onToggle={() => onTogglePlay(play.playerId)}
             />
           ))}
         </div>
+        {selectable && selectedPlays.size > 0 && (
+          <div className="sticky bottom-0 mt-4 p-4 bg-[#111118] border border-[#1e1e2a] rounded-xl flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-mono text-[#e8e6e3]">
+                {selectedPlays.size} selected
+              </span>
+              <button
+                onClick={onClearSelection}
+                className="text-xs font-mono text-[#5a5a64] hover:text-[#e8e6e3] transition-colors cursor-pointer"
+              >
+                Clear
+              </button>
+            </div>
+            <button
+              onClick={onReframe}
+              disabled={selectedPlays.size < 3 || selectedPlays.size > 5}
+              className="px-4 py-2 text-sm font-mono font-bold rounded-lg transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed text-[#0a0a0f]"
+              style={{ backgroundColor: tab.color }}
+            >
+              Reframe Selected
+            </button>
+          </div>
+        )}
       </section>
 
       {/* Data anomalies */}
@@ -413,27 +570,57 @@ function PlayCard({
   play,
   tab,
   onExpand,
+  selectable,
+  selected,
+  onToggle,
 }: {
   play: ValuePlay;
   tab: BriefTab;
   onExpand: () => void;
+  selectable?: boolean;
+  selected?: boolean;
+  onToggle?: () => void;
 }) {
   return (
     <div
-      className="border border-[#1e1e2a] bg-[#111118] rounded-xl p-5 flex flex-col gap-3 transition-colors"
-      style={{ ["--hover-border" as string]: `${tab.color}66` }}
-      onMouseEnter={(e) =>
-        (e.currentTarget.style.borderColor = `${tab.color}66`)
-      }
-      onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#1e1e2a")}
+      className={`border rounded-xl p-5 flex flex-col gap-3 transition-all ${
+        selected
+          ? "bg-[#111118] ring-1"
+          : "border-[#1e1e2a] bg-[#111118]"
+      } ${selectable ? "cursor-pointer" : ""}`}
+      style={{
+        borderColor: selected ? `${tab.color}99` : "#1e1e2a",
+        boxShadow: selected ? `0 0 0 1px ${tab.color}33` : undefined,
+      }}
+      onClick={selectable ? onToggle : undefined}
+      onMouseEnter={(e) => {
+        if (!selected) e.currentTarget.style.borderColor = `${tab.color}66`;
+      }}
+      onMouseLeave={(e) => {
+        if (!selected) e.currentTarget.style.borderColor = "#1e1e2a";
+      }}
     >
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="font-mono font-bold text-[#e8e6e3]">
-            {play.playerName}
-          </div>
-          <div className="font-mono text-xs text-[#5a5a64] uppercase tracking-widest">
-            {play.team}
+        <div className="flex items-start gap-3">
+          {selectable && (
+            <div
+              className="mt-1 w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center text-xs transition-colors"
+              style={{
+                borderColor: selected ? tab.color : "#5a5a64",
+                backgroundColor: selected ? tab.color : "transparent",
+                color: selected ? "#0a0a0f" : "transparent",
+              }}
+            >
+              {selected ? "✓" : ""}
+            </div>
+          )}
+          <div>
+            <div className="font-mono font-bold text-[#e8e6e3]">
+              {play.playerName}
+            </div>
+            <div className="font-mono text-xs text-[#5a5a64] uppercase tracking-widest">
+              {play.team}
+            </div>
           </div>
         </div>
         <Badge variant={tab.badge}>{play.pra.toFixed(1)} PRA</Badge>
@@ -460,7 +647,10 @@ function PlayCard({
         variant="secondary"
         size="sm"
         className="mt-auto"
-        onClick={onExpand}
+        onClick={(e: React.MouseEvent) => {
+          e.stopPropagation();
+          onExpand();
+        }}
       >
         Expand this angle →
       </Button>

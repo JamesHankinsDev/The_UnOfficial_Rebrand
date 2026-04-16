@@ -3,7 +3,7 @@ import type { BriefContent } from "../firestore";
 import {
   generateBrief,
   buildSnapshotPayload,
-  JSON_SCHEMA_INSTRUCTION,
+  jsonSchemaInstruction,
 } from "./shared";
 
 export { expandPlay as expandValuePlay } from "./shared";
@@ -19,7 +19,7 @@ Surface the top value plays from the last 7 days using PRA/CAP% as the primary l
 
 Flag if the player's injury status or any recent transaction news might affect this analysis — the writer will verify before publishing.
 
-${JSON_SCHEMA_INSTRUCTION}`;
+${jsonSchemaInstruction()}`;
 
 export async function generateValueMealBrief(
   snapshots: PlayerSnapshot[],
