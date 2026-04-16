@@ -10,6 +10,7 @@ interface GridPlayer {
   team_abbreviation: string
   team_full_name: string
   games_played: number
+  mpg: number
   draft_year: number | null
   pts: number
   reb: number
@@ -25,7 +26,7 @@ interface GridPlayer {
 // Rookie cutoff: drafted within last 4 seasons
 const ROOKIE_CUTOFF_YEAR = 2022
 
-type SortKey = keyof GridPlayer | 'name'
+type SortKey = keyof GridPlayer | 'name' | 'mav'
 type SortDir = 'asc' | 'desc'
 type Period = 'season' | 'last1' | 'last3' | 'last5' | 'last10' | 'week' | 'month'
 type PositionFilter = '' | 'G' | 'F' | 'C'
@@ -42,6 +43,11 @@ interface ColumnDef {
   highlight?: boolean
 }
 
+function computeMAV(p: GridPlayer): number | null {
+  if (p.cap_pct == null || p.cap_pct <= 0 || p.mpg <= 0) return null
+  return (p.pra / p.cap_pct) * (p.mpg / 36)
+}
+
 const COLUMNS: ColumnDef[] = [
   { key: 'name', label: 'Player', sortKey: 'name', defaultVisible: true, align: 'left',
     format: (p) => `${p.first_name} ${p.last_name}` },
@@ -51,6 +57,8 @@ const COLUMNS: ColumnDef[] = [
     format: (p) => p.position || '—' },
   { key: 'gp', label: 'GP', sortKey: 'games_played', defaultVisible: true, align: 'center',
     format: (p) => String(p.games_played) },
+  { key: 'mpg', label: 'MPG', sortKey: 'mpg', defaultVisible: false, align: 'center',
+    format: (p) => p.mpg.toFixed(1) },
   { key: 'pts', label: 'PTS', sortKey: 'pts', defaultVisible: true, align: 'center',
     format: (p) => p.pts.toFixed(1), highlight: true },
   { key: 'reb', label: 'REB', sortKey: 'reb', defaultVisible: true, align: 'center',
@@ -69,6 +77,8 @@ const COLUMNS: ColumnDef[] = [
     format: (p) => formatSalary(p.salary) },
   { key: 'cap_pct', label: 'Cap%', sortKey: 'cap_pct', defaultVisible: true, align: 'right',
     format: (p) => p.cap_pct != null ? `${p.cap_pct.toFixed(1)}%` : '—' },
+  { key: 'mav', label: 'MAV', sortKey: 'mav', defaultVisible: true, align: 'right', highlight: true,
+    format: (p) => { const v = computeMAV(p); return v != null ? v.toFixed(2) : '—' } },
   { key: 'draft', label: 'Draft', sortKey: 'draft_year', defaultVisible: false, align: 'center',
     format: (p) => p.draft_year != null ? String(p.draft_year) : '—' },
 ]
@@ -193,6 +203,13 @@ export function PlayerGrid({ season, onSelectPlayer, teamFilter }: PlayerGridPro
       let cmp = 0
       if (sortKey === 'name') {
         cmp = `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)
+      } else if (sortKey === 'mav') {
+        const va = computeMAV(a)
+        const vb = computeMAV(b)
+        if (va == null && vb == null) cmp = 0
+        else if (va == null) cmp = 1
+        else if (vb == null) cmp = -1
+        else cmp = va - vb
       } else {
         const va = a[sortKey]
         const vb = b[sortKey]

@@ -7,11 +7,16 @@ import { PlayerSearch } from '@/components/analytics/PlayerSearch'
 import { PlayerProfile } from '@/components/analytics/PlayerProfile'
 import { PlayerComparison } from '@/components/analytics/PlayerComparison'
 import { PlayerGrid } from '@/components/analytics/PlayerGrid'
+import { HotColdStreaks } from '@/components/analytics/HotColdStreaks'
+import { PlayerWatchlist } from '@/components/analytics/PlayerWatchlist'
+import { TeamSalaryExplorer } from '@/components/analytics/TeamSalaryExplorer'
 
 const tabs = [
   { id: 'overview', label: 'Overview' },
   { id: 'players', label: 'Players' },
   { id: 'compare', label: 'Compare' },
+  { id: 'watchlist', label: 'Watchlist' },
+  { id: 'teams', label: 'Teams' },
 ] as const
 
 type TabId = (typeof tabs)[number]['id']
@@ -39,6 +44,11 @@ export default function AnalyticsPage() {
     setActiveTab(tabId)
     setSelectedPlayerId(null)
     setSelectedTeam(null)
+  }
+
+  const navigateToPlayer = (id: number) => {
+    setSelectedPlayerId(id)
+    setActiveTab('players')
   }
 
   return (
@@ -72,12 +82,12 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 border-b border-[#1e1e2a] mb-6">
+      <div className="flex gap-1 border-b border-[#1e1e2a] mb-6 overflow-x-auto">
         {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => handleTabChange(tab.id)}
-            className={`px-4 py-2.5 font-mono text-sm font-bold transition-colors relative ${
+            className={`flex-shrink-0 px-4 py-2.5 font-mono text-sm font-bold transition-colors relative ${
               activeTab === tab.id
                 ? 'text-[#fbbf24]'
                 : 'text-[#5a5a64] hover:text-[#8a8a94]'
@@ -101,6 +111,10 @@ export default function AnalyticsPage() {
           <section>
             <h2 className="font-mono font-bold text-[#e8e6e3] text-base mb-4">Recent Scores</h2>
             <Scoreboard onSelectTeam={handleSelectTeam} />
+          </section>
+          <section>
+            <h2 className="font-mono font-bold text-[#e8e6e3] text-base mb-4">Hot & Cold Streaks</h2>
+            <HotColdStreaks season={season} onSelectPlayer={navigateToPlayer} />
           </section>
         </div>
       )}
@@ -151,6 +165,14 @@ export default function AnalyticsPage() {
 
       {activeTab === 'compare' && (
         <PlayerComparison season={season} />
+      )}
+
+      {activeTab === 'watchlist' && (
+        <PlayerWatchlist season={season} onSelectPlayer={navigateToPlayer} />
+      )}
+
+      {activeTab === 'teams' && (
+        <TeamSalaryExplorer season={season} onSelectPlayer={navigateToPlayer} />
       )}
     </div>
   )

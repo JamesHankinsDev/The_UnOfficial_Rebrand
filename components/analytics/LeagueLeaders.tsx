@@ -1,8 +1,7 @@
 'use client'
 
 import React, { useEffect, useState, useMemo } from 'react'
-
-const NBA_CAP = 141_000_000
+import { SALARY_CAP_USD } from '@/lib/constants'
 
 interface LeaderEntry {
   player_id: number
@@ -154,7 +153,7 @@ export function LeagueLeaders({ season, onSelectPlayer, teamFilter }: LeagueLead
     return [...filtered]
       .map(l => {
         const salary = salaries.get(l.player_id) ?? null
-        const capPct = salary != null ? (salary / NBA_CAP) * 100 : null
+        const capPct = salary != null ? (salary / SALARY_CAP_USD) * 100 : null
         const efficiency = capPct != null && capPct > 0 ? l.value / capPct : null
         return { ...l, efficiency, salary, capPct }
       })
@@ -254,7 +253,7 @@ export function LeagueLeaders({ season, onSelectPlayer, teamFilter }: LeagueLead
         </div>
         {viewMode === 'value' && (
           <span className="font-mono text-[10px] text-[#5a5a64]">
-            {statLabel} per 1% of ${NBA_CAP / 1_000_000}M cap
+            {statLabel} per 1% of ${SALARY_CAP_USD / 1_000_000}M cap
           </span>
         )}
       </div>
@@ -295,7 +294,7 @@ export function LeagueLeaders({ season, onSelectPlayer, teamFilter }: LeagueLead
             <tbody>
               {displayLeaders.map((leader, idx) => {
                 const salary = salaries.get(leader.player_id) ?? null
-                const capPct = salary != null ? (salary / NBA_CAP) * 100 : null
+                const capPct = salary != null ? (salary / SALARY_CAP_USD) * 100 : null
                 const efficiency = capPct != null && capPct > 0 ? leader.value / capPct : null
 
                 return (
@@ -361,7 +360,7 @@ export function LeagueLeaders({ season, onSelectPlayer, teamFilter }: LeagueLead
       <div className="mt-3 text-center">
         <span className="font-mono text-[10px] text-[#3a3a44]">
           {viewMode === 'value'
-            ? `${statLabel}/1% cap — top 20 from ${valuePool.length || leaders.length} players · $${NBA_CAP / 1_000_000}M cap`
+            ? `${statLabel}/1% cap — top 20 from ${valuePool.length || leaders.length} players · $${SALARY_CAP_USD / 1_000_000}M cap`
             : stat === 'pra' ? 'PRA = Points + Rebounds + Assists per game'
             : stat === 'stocks' ? 'Stocks = Blocks + Steals per game'
             : `${statLabel} per game`}

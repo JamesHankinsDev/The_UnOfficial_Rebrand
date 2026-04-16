@@ -121,6 +121,7 @@ interface GridPlayer {
   team_abbreviation: string
   team_full_name: string
   games_played: number
+  mpg: number
   draft_year: number | null
   pts: number
   reb: number
@@ -138,7 +139,7 @@ interface RawStat {
   player: { id: number; first_name: string; last_name: string; position: string; team_id: number }
 }
 
-async function buildSeasonGrid(season: number): Promise<GridPlayer[]> {
+async function buildSeasonGrid(season: number, skipQualification = false): Promise<GridPlayer[]> {
   // Fetch all 5 stat leaders + minutes in parallel
   const [ptsRaw, rebRaw, astRaw, stlRaw, blkRaw, minRaw] = await Promise.all([
     fetchLeadersForStat('pts', season),
@@ -189,9 +190,11 @@ async function buildSeasonGrid(season: number): Promise<GridPlayer[]> {
 
   const qualified: GridPlayer[] = []
   for (const [playerId, data] of playerMap) {
-    if (data.games_played < minGamesRequired) continue
-    const mpg = mpgMap.get(playerId)
-    if (mpg != null && mpg < MIN_MPG) continue
+    if (!skipQualification) {
+      if (data.games_played < minGamesRequired) continue
+      const mpg = mpgMap.get(playerId)
+      if (mpg != null && mpg < MIN_MPG) continue
+    }
 
     const pts = data.stats.pts ?? 0
     const reb = data.stats.reb ?? 0
@@ -208,6 +211,7 @@ async function buildSeasonGrid(season: number): Promise<GridPlayer[]> {
       team_abbreviation: team?.abbreviation ?? '—',
       team_full_name: team?.full_name ?? '—',
       games_played: data.games_played,
+      mpg: Math.round((mpgMap.get(playerId) ?? 0) * 10) / 10,
       draft_year: null,
       pts: Math.round(pts * 10) / 10,
       reb: Math.round(reb * 10) / 10,
@@ -327,6 +331,7 @@ async function buildRollingGrid(
       team_abbreviation: team?.abbreviation ?? '—',
       team_full_name: team?.full_name ?? '—',
       games_played: gameCount,
+      mpg: Math.round(mpg * 10) / 10,
       draft_year: null,
       pts: Math.round(pts * 10) / 10,
       reb: Math.round(reb * 10) / 10,
@@ -363,9 +368,11 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const season = parseInt(searchParams.get('season') || String(CURRENT_SEASON), 10)
     const period = searchParams.get('period') || 'season'
+    const skipQual = searchParams.get('qualified') === 'false'
 
     if (period === 'season') {
-      const grid = await cached(`player-grid-season-${season}`, TTL.LONG, () => buildSeasonGrid(season))
+      const cacheKey = skipQual ? `player-grid-season-all-${season}` : `player-grid-season-${season}`
+      const grid = await cached(cacheKey, TTL.LONG, () => buildSeasonGrid(season, skipQual))
       return NextResponse.json(grid)
     }
 
