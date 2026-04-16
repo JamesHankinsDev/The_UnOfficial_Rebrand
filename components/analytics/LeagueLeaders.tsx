@@ -56,9 +56,10 @@ function formatSalary(amount: number | null | undefined): string {
 interface LeagueLeadersProps {
   season: number
   onSelectPlayer: (playerId: number) => void
+  teamFilter?: { abbreviation: string; full_name: string } | null
 }
 
-export function LeagueLeaders({ season, onSelectPlayer }: LeagueLeadersProps) {
+export function LeagueLeaders({ season, onSelectPlayer, teamFilter }: LeagueLeadersProps) {
   const [stat, setStat] = useState<StatId>('pts')
   const [period, setPeriod] = useState<Period>('season')
   const [contractFilter, setContractFilter] = useState<ContractFilter>('all')
@@ -131,11 +132,23 @@ export function LeagueLeaders({ season, onSelectPlayer }: LeagueLeadersProps) {
     })
   }
 
+  // Apply team filter to any array of leaders
+  function applyTeamFilter(list: LeaderEntry[]): LeaderEntry[] {
+    if (!teamFilter) return list
+    return list.filter(l => l.team_abbreviation === teamFilter.abbreviation)
+  }
+
   // In value mode: rank the full pool by stat per 1% of cap, show top 20
   const displayLeaders = useMemo(() => {
-    const filtered = applyContractFilter(viewMode === 'stat' ? leaders : (valuePool.length > 0 ? valuePool : leaders))
+    // When team filter is active in stat mode, draw from the larger pool so results aren't empty
+    const source = (teamFilter && viewMode === 'stat')
+      ? (valuePool.length > 0 ? valuePool : leaders)
+      : (viewMode === 'stat' ? leaders : (valuePool.length > 0 ? valuePool : leaders))
+    const filtered = applyTeamFilter(applyContractFilter(source))
 
-    if (viewMode === 'stat') return filtered
+    if (viewMode === 'stat') {
+      return filtered.map((l, i) => ({ ...l, rank: i + 1 }))
+    }
     if (salaries.size === 0) return filtered
 
     return [...filtered]
@@ -150,7 +163,7 @@ export function LeagueLeaders({ season, onSelectPlayer }: LeagueLeadersProps) {
       .slice(0, 20)
       .map((l, i) => ({ ...l, rank: i + 1 }))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leaders, valuePool, salaries, viewMode, contractFilter])
+  }, [leaders, valuePool, salaries, viewMode, contractFilter, teamFilter])
 
   const statLabel = statCategories.find(c => c.id === stat)?.label ?? stat.toUpperCase()
   const salariesReady = salaries.size > 0

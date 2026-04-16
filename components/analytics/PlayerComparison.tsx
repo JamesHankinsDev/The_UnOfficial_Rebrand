@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { PlayerSearch } from './PlayerSearch'
-import { ComparisonBarChart } from './StatChart'
+import { ComparisonBarChart, MultiStatTrendChart, STAT_COLORS } from './StatChart'
 
 interface Player {
   id: number
@@ -51,12 +51,53 @@ interface CompareResult {
   averages: [SeasonAvg[], SeasonAvg[]]
 }
 
+interface GameStat {
+  id: number
+  pts: number
+  reb: number
+  ast: number
+  stl: number
+  blk: number
+  game: { date: string }
+}
+
+const PLAYER_COLORS = ['#fbbf24', '#8b5cf6']
+
+const trendStats = [
+  { key: 'pts', label: 'PTS' },
+  { key: 'reb', label: 'REB' },
+  { key: 'ast', label: 'AST' },
+  { key: 'stl', label: 'STL' },
+  { key: 'blk', label: 'BLK' },
+  { key: 'pra', label: 'PRA' },
+  { key: 'stocks', label: 'STOCKS' },
+] as const
+
+type TrendStatKey = (typeof trendStats)[number]['key']
+
+function getGameStatValue(g: GameStat, key: TrendStatKey): number {
+  switch (key) {
+    case 'pts': return g.pts
+    case 'reb': return g.reb
+    case 'ast': return g.ast
+    case 'stl': return g.stl
+    case 'blk': return g.blk
+    case 'pra': return g.pts + g.reb + g.ast
+    case 'stocks': return g.stl + g.blk
+  }
+}
+
 export function PlayerComparison({ season }: { season: number }) {
   const [player1, setPlayer1] = useState<Player | null>(null)
   const [player2, setPlayer2] = useState<Player | null>(null)
   const [result, setResult] = useState<CompareResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // Trend state
+  const [trendStat, setTrendStat] = useState<TrendStatKey>('pts')
+  const [gameLogs, setGameLogs] = useState<[GameStat[], GameStat[]]>([[], []])
+  const [gamesLoading, setGamesLoading] = useState(false)
 
   const handleCompare = async () => {
     if (!player1 || !player2) return
@@ -75,6 +116,25 @@ export function PlayerComparison({ season }: { season: number }) {
     }
   }
 
+  // Fetch game logs for both players once comparison loads
+  useEffect(() => {
+    if (!result || !player1 || !player2) {
+      setGameLogs([[], []])
+      return
+    }
+
+    setGamesLoading(true)
+    Promise.all([
+      fetch(`/api/nba/players/${player1.id}/games?season=${season}`).then(r => r.json()).catch(() => []),
+      fetch(`/api/nba/players/${player2.id}/games?season=${season}`).then(r => r.json()).catch(() => []),
+    ]).then(([g1, g2]) => {
+      setGameLogs([
+        Array.isArray(g1) ? g1.slice(0, 15) : [],
+        Array.isArray(g2) ? g2.slice(0, 15) : [],
+      ])
+    }).finally(() => setGamesLoading(false))
+  }, [result, player1, player2, season])
+
   const avg1 = result?.averages[0]?.[0]
   const avg2 = result?.averages[1]?.[0]
 
@@ -90,6 +150,26 @@ export function PlayerComparison({ season }: { season: number }) {
 
   const p1Name = player1 ? `${player1.first_name} ${player1.last_name}` : 'Player 1'
   const p2Name = player2 ? `${player2.first_name} ${player2.last_name}` : 'Player 2'
+
+  // Build trend chart data
+  const maxGames = Math.max(gameLogs[0].length, gameLogs[1].length)
+  const trendLabels = Array.from({ length: maxGames }, (_, i) => `G${maxGames - i}`)
+  const trendSeries = [
+    {
+      key: 'player1',
+      label: p1Name,
+      color: PLAYER_COLORS[0],
+      data: [...gameLogs[0]].reverse().map(g => getGameStatValue(g, trendStat)),
+    },
+    {
+      key: 'player2',
+      label: p2Name,
+      color: PLAYER_COLORS[1],
+      data: [...gameLogs[1]].reverse().map(g => getGameStatValue(g, trendStat)),
+    },
+  ].filter(s => s.data.length > 0)
+
+  const trendStatLabel = trendStats.find(s => s.key === trendStat)?.label ?? trendStat.toUpperCase()
 
   return (
     <div>
@@ -157,6 +237,58 @@ export function PlayerComparison({ season }: { season: number }) {
               player1Name={p1Name}
               player2Name={p2Name}
             />
+          </div>
+
+          {/* Trend comparison */}
+          <div className="border border-[#1e1e2a] rounded-xl p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <div>
+                <h3 className="font-mono font-bold text-[#e8e6e3] text-sm">
+                  {trendStatLabel} Trend (Last {maxGames} Games)
+                </h3>
+                <div className="flex items-center gap-3 mt-1.5">
+                  <span className="flex items-center gap-1.5 font-mono text-[10px] text-[#8a8a94]">
+                    <span className="w-2.5 h-0.5 rounded-full" style={{ backgroundColor: PLAYER_COLORS[0] }} />
+                    {p1Name}
+                  </span>
+                  <span className="flex items-center gap-1.5 font-mono text-[10px] text-[#8a8a94]">
+                    <span className="w-2.5 h-0.5 rounded-full" style={{ backgroundColor: PLAYER_COLORS[1] }} />
+                    {p2Name}
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {trendStats.map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => setTrendStat(key)}
+                    className={`px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
+                      trendStat === key
+                        ? 'text-[#0a0a0f]'
+                        : 'bg-[#111118] border border-[#1e1e2a] text-[#5a5a64] hover:text-[#8a8a94] hover:border-[#3a3a44]'
+                    }`}
+                    style={trendStat === key ? { backgroundColor: STAT_COLORS[key] } : undefined}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {gamesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <span className="font-mono text-sm text-[#5a5a64] animate-pulse">Loading game logs...</span>
+              </div>
+            ) : trendSeries.length === 0 ? (
+              <div className="flex items-center justify-center py-12">
+                <span className="font-mono text-sm text-[#5a5a64]">No game log data available</span>
+              </div>
+            ) : (
+              <MultiStatTrendChart
+                labels={trendLabels}
+                series={trendSeries}
+                activeSeries={trendSeries.map(s => s.key)}
+              />
+            )}
           </div>
 
           {/* Stat table */}

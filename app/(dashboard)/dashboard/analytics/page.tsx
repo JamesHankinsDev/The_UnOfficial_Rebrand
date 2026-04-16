@@ -6,7 +6,7 @@ import { Scoreboard } from '@/components/analytics/Scoreboard'
 import { PlayerSearch } from '@/components/analytics/PlayerSearch'
 import { PlayerProfile } from '@/components/analytics/PlayerProfile'
 import { PlayerComparison } from '@/components/analytics/PlayerComparison'
-import { LeagueLeaders } from '@/components/analytics/LeagueLeaders'
+import { PlayerGrid } from '@/components/analytics/PlayerGrid'
 
 const tabs = [
   { id: 'overview', label: 'Overview' },
@@ -18,10 +18,28 @@ type TabId = (typeof tabs)[number]['id']
 
 const currentSeason = 2025
 
+interface TeamSelection {
+  abbreviation: string
+  full_name: string
+}
+
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<TabId>('overview')
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null)
+  const [selectedTeam, setSelectedTeam] = useState<TeamSelection | null>(null)
   const [season, setSeason] = useState(currentSeason)
+
+  const handleSelectTeam = (team: TeamSelection) => {
+    setSelectedTeam(team)
+    setSelectedPlayerId(null)
+    setActiveTab('players')
+  }
+
+  const handleTabChange = (tabId: TabId) => {
+    setActiveTab(tabId)
+    setSelectedPlayerId(null)
+    setSelectedTeam(null)
+  }
 
   return (
     <div className="p-6 sm:p-8 max-w-6xl mx-auto">
@@ -40,6 +58,7 @@ export default function AnalyticsPage() {
             onChange={(e) => {
               setSeason(parseInt(e.target.value, 10))
               setSelectedPlayerId(null)
+              setSelectedTeam(null)
             }}
             className="bg-[#111118] border border-[#1e1e2a] text-[#e8e6e3] text-sm font-mono rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#fbbf24] transition-colors"
           >
@@ -57,10 +76,7 @@ export default function AnalyticsPage() {
         {tabs.map(tab => (
           <button
             key={tab.id}
-            onClick={() => {
-              setActiveTab(tab.id)
-              setSelectedPlayerId(null)
-            }}
+            onClick={() => handleTabChange(tab.id)}
             className={`px-4 py-2.5 font-mono text-sm font-bold transition-colors relative ${
               activeTab === tab.id
                 ? 'text-[#fbbf24]'
@@ -80,11 +96,11 @@ export default function AnalyticsPage() {
         <div className="space-y-8">
           <section>
             <h2 className="font-mono font-bold text-[#e8e6e3] text-base mb-4">Conference Standings</h2>
-            <StandingsTable season={season} />
+            <StandingsTable season={season} onSelectTeam={handleSelectTeam} />
           </section>
           <section>
             <h2 className="font-mono font-bold text-[#e8e6e3] text-base mb-4">Recent Scores</h2>
-            <Scoreboard />
+            <Scoreboard onSelectTeam={handleSelectTeam} />
           </section>
         </div>
       )}
@@ -96,16 +112,37 @@ export default function AnalyticsPage() {
               playerId={selectedPlayerId}
               season={season}
               onBack={() => setSelectedPlayerId(null)}
+              backLabel={selectedTeam ? `Back to ${selectedTeam.full_name}` : undefined}
             />
           ) : (
             <div>
-              <div className="max-w-md mb-6">
+              {/* Quick search — jumps directly to a player profile */}
+              <div className="max-w-sm mb-4">
                 <PlayerSearch onSelect={(p) => setSelectedPlayerId(p.id)} />
               </div>
-              <h2 className="font-mono font-bold text-[#e8e6e3] text-base mb-4">League Leaders</h2>
-              <LeagueLeaders
+
+              {/* Team filter pill */}
+              {selectedTeam && (
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="font-mono text-xs text-[#5a5a64]">Filtered by:</span>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#fbbf24]/10 text-[#fbbf24] font-mono text-xs font-bold rounded-lg border border-[#fbbf24]/20">
+                    {selectedTeam.full_name}
+                    <button
+                      onClick={() => setSelectedTeam(null)}
+                      className="text-[#fbbf24]/60 hover:text-[#fbbf24] transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </span>
+                </div>
+              )}
+
+              <PlayerGrid
                 season={season}
                 onSelectPlayer={(id) => setSelectedPlayerId(id)}
+                teamFilter={selectedTeam}
               />
             </div>
           )}

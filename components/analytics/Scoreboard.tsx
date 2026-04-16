@@ -33,7 +33,12 @@ function formatDate(dateStr: string) {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
-export function Scoreboard() {
+interface TeamSelection {
+  abbreviation: string
+  full_name: string
+}
+
+export function Scoreboard({ onSelectTeam }: { onSelectTeam?: (team: TeamSelection) => void }) {
   const [games, setGames] = useState<Game[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -99,7 +104,7 @@ export function Scoreboard() {
           </h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {grouped[date].map(game => (
-              <GameCard key={game.id} game={game} />
+              <GameCard key={game.id} game={game} onSelectTeam={onSelectTeam} />
             ))}
           </div>
         </div>
@@ -108,7 +113,7 @@ export function Scoreboard() {
   )
 }
 
-function GameCard({ game }: { game: Game }) {
+function GameCard({ game, onSelectTeam }: { game: Game; onSelectTeam?: (team: TeamSelection) => void }) {
   const homeWon = game.home_team_score > game.visitor_team_score
   const isFinal = game.status === 'Final'
 
@@ -131,7 +136,10 @@ function GameCard({ game }: { game: Game }) {
       {/* Teams & scores */}
       <div className="space-y-2">
         <div className={`flex items-center justify-between ${isFinal && !homeWon ? 'opacity-60' : ''}`}>
-          <span className="font-mono text-sm font-bold text-[#e8e6e3] truncate mr-2">
+          <span
+            className="font-mono text-sm font-bold text-[#e8e6e3] truncate mr-2 cursor-pointer hover:text-[#fbbf24] transition-colors"
+            onClick={() => onSelectTeam?.({ abbreviation: game.visitor_team.abbreviation, full_name: game.visitor_team.full_name })}
+          >
             {game.visitor_team.abbreviation}
           </span>
           <span className="font-mono text-sm font-bold text-[#e8e6e3]">
@@ -139,7 +147,10 @@ function GameCard({ game }: { game: Game }) {
           </span>
         </div>
         <div className={`flex items-center justify-between ${isFinal && homeWon ? '' : isFinal ? 'opacity-60' : ''}`}>
-          <span className="font-mono text-sm font-bold text-[#e8e6e3] truncate mr-2">
+          <span
+            className="font-mono text-sm font-bold text-[#e8e6e3] truncate mr-2 cursor-pointer hover:text-[#fbbf24] transition-colors"
+            onClick={() => onSelectTeam?.({ abbreviation: game.home_team.abbreviation, full_name: game.home_team.full_name })}
+          >
             {game.home_team.abbreviation}
           </span>
           <span className="font-mono text-sm font-bold text-[#e8e6e3]">

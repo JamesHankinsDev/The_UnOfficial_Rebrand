@@ -6,6 +6,16 @@ import {
   BarChart, Bar, Legend, Cell,
 } from 'recharts'
 
+export const STAT_COLORS: Record<string, string> = {
+  pts: '#fbbf24',
+  reb: '#10b981',
+  ast: '#3b82f6',
+  stl: '#a855f7',
+  blk: '#f97316',
+  pra: '#ec4899',
+  stocks: '#14b8a6',
+}
+
 interface LineChartProps {
   data: { label: string; value: number }[]
   color?: string
@@ -57,6 +67,86 @@ interface ComparisonBarProps {
   player2Name: string
   height?: number
 }
+
+// --- Multi-stat trend chart ---
+
+interface StatSeries {
+  key: string
+  label: string
+  color: string
+  data: number[]
+}
+
+interface MultiStatTrendChartProps {
+  labels: string[]
+  series: StatSeries[]
+  activeSeries: string[]
+  height?: number
+}
+
+function MultiStatTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ dataKey: string; name: string; value: number; color: string }>; label?: string }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="bg-[#111118] border border-[#1e1e2a] rounded-lg p-3 font-mono text-xs">
+      <div className="text-[#5a5a64] mb-1.5">{label}</div>
+      {payload.map((entry) => (
+        <div key={entry.dataKey} className="flex items-center gap-2 py-0.5">
+          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
+          <span className="text-[#8a8a94]">{entry.name}:</span>
+          <span className="text-[#e8e6e3] font-bold">{entry.value}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function MultiStatTrendChart({ labels, series, activeSeries, height = 220 }: MultiStatTrendChartProps) {
+  if (labels.length === 0) return null
+
+  const chartData = labels.map((label, i) => {
+    const point: Record<string, string | number> = { label }
+    for (const s of series) {
+      if (activeSeries.includes(s.key)) {
+        point[s.key] = s.data[i]
+      }
+    }
+    return point
+  })
+
+  const visibleSeries = series.filter((s) => activeSeries.includes(s.key))
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#1e1e2a" />
+        <XAxis
+          dataKey="label"
+          tick={{ fill: '#5a5a64', fontSize: 10, fontFamily: 'Space Mono, monospace' }}
+          stroke="#1e1e2a"
+        />
+        <YAxis
+          tick={{ fill: '#5a5a64', fontSize: 10, fontFamily: 'Space Mono, monospace' }}
+          stroke="#1e1e2a"
+        />
+        <Tooltip content={<MultiStatTooltip />} />
+        {visibleSeries.map((s) => (
+          <Line
+            key={s.key}
+            type="monotone"
+            dataKey={s.key}
+            name={s.label}
+            stroke={s.color}
+            strokeWidth={2}
+            dot={{ fill: s.color, r: 3 }}
+            activeDot={{ fill: s.color, r: 5 }}
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+// --- Comparison bar chart ---
 
 export function ComparisonBarChart({ data, player1Name, player2Name, height = 300 }: ComparisonBarProps) {
   if (data.length === 0) return null

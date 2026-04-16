@@ -32,7 +32,12 @@ const divisionOrder = [
   { conference: 'West', divisions: ['Northwest', 'Pacific', 'Southwest'] },
 ]
 
-export function StandingsTable({ season }: { season: number }) {
+interface TeamSelection {
+  abbreviation: string
+  full_name: string
+}
+
+export function StandingsTable({ season, onSelectTeam }: { season: number; onSelectTeam?: (team: TeamSelection) => void }) {
   const [standings, setStandings] = useState<Standing[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -157,6 +162,7 @@ export function StandingsTable({ season }: { season: number }) {
             title={group.title}
             teams={group.teams}
             view={view}
+            onSelectTeam={onSelectTeam}
           />
         ))}
       </div>
@@ -249,10 +255,12 @@ function StandingsGroup({
   title,
   teams,
   view,
+  onSelectTeam,
 }: {
   title: string
   teams: Standing[]
   view: View
+  onSelectTeam?: (team: TeamSelection) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const [sortKey, setSortKey] = useState<SortKey>('rank')
@@ -360,7 +368,10 @@ function StandingsGroup({
                 <td className="px-4 py-2.5 font-mono text-[#5a5a64] text-xs">{displayRank}</td>
                 <td className="px-4 py-2.5 whitespace-nowrap">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-[#e8e6e3] text-sm">
+                    <span
+                      className="font-mono font-bold text-[#e8e6e3] text-sm cursor-pointer hover:text-[#fbbf24] transition-colors"
+                      onClick={() => onSelectTeam?.({ abbreviation: s.team.abbreviation, full_name: s.team.full_name })}
+                    >
                       {expanded
                         ? s.team.full_name
                         : <><span className="hidden sm:inline">{s.team.full_name}</span><span className="sm:hidden">{s.team.abbreviation}</span></>

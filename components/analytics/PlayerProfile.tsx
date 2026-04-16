@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { PointsTrendChart } from './StatChart'
+import { MultiStatTrendChart, STAT_COLORS } from './StatChart'
 
 // 2025-26 NBA salary cap
 const NBA_CAP = 141_000_000
@@ -86,6 +86,7 @@ interface PlayerProfileProps {
   playerId: number
   season: number
   onBack: () => void
+  backLabel?: string
 }
 
 interface AdvancedAvg {
@@ -127,7 +128,7 @@ interface ContractAggregate {
   avg_annual_value: number | null
 }
 
-export function PlayerProfile({ playerId, season, onBack }: PlayerProfileProps) {
+export function PlayerProfile({ playerId, season, onBack, backLabel }: PlayerProfileProps) {
   const [player, setPlayer] = useState<PlayerData | null>(null)
   const [averages, setAverages] = useState<SeasonAvg[]>([])
   const [games, setGames] = useState<GameStat[]>([])
@@ -137,6 +138,7 @@ export function PlayerProfile({ playerId, season, onBack }: PlayerProfileProps) 
   const [contractAggregate, setContractAggregate] = useState<ContractAggregate | null>(null)
   const [statsView, setStatsView] = useState<StatsView>('stats')
   const [gameFilter, setGameFilter] = useState<GameFilter>('all')
+  const [activeStats, setActiveStats] = useState<string[]>(['pts'])
   const [loading, setLoading] = useState(true)
   const [gamesLoading, setGamesLoading] = useState(true)
 
@@ -149,6 +151,7 @@ export function PlayerProfile({ playerId, season, onBack }: PlayerProfileProps) 
     setContractAggregate(null)
     setStatsView('stats')
     setGameFilter('all')
+    setActiveStats(['pts'])
 
     fetch(`/api/nba/players/${playerId}?season=${season}`)
       .then(res => res.json())
@@ -224,11 +227,51 @@ export function PlayerProfile({ playerId, season, onBack }: PlayerProfileProps) 
   // For last3 we use a separate slice since filter would exclude all
   const displayGames = gameFilter === 'last3' ? games.slice(0, 3) : filteredGames
 
-  // Build points trend from game log (reversed so oldest first)
-  const trendData = [...displayGames].reverse().map(g => ({
-    label: new Date(g.game.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    value: g.pts,
+  // Build multi-stat trend data from game log (reversed so oldest first)
+  const reversedGames = [...displayGames].reverse()
+  const trendLabels = reversedGames.map(g =>
+    new Date(g.game.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  )
+
+  const getStatValue = (g: GameStat, key: string): number => {
+    switch (key) {
+      case 'pts': return g.pts
+      case 'reb': return g.reb
+      case 'ast': return g.ast
+      case 'stl': return g.stl
+      case 'blk': return g.blk
+      case 'pra': return g.pts + g.reb + g.ast
+      case 'stocks': return g.stl + g.blk
+      default: return 0
+    }
+  }
+
+  const statSeriesConfig = [
+    { key: 'pts', label: 'PTS' },
+    { key: 'reb', label: 'REB' },
+    { key: 'ast', label: 'AST' },
+    { key: 'stl', label: 'STL' },
+    { key: 'blk', label: 'BLK' },
+    { key: 'pra', label: 'PRA' },
+    { key: 'stocks', label: 'STOCKS' },
+  ]
+
+  const allSeries = statSeriesConfig.map(({ key, label }) => ({
+    key,
+    label,
+    color: STAT_COLORS[key],
+    data: reversedGames.map(g => getStatValue(g, key)),
   }))
+
+  const toggleStat = (key: string) => {
+    setActiveStats(prev => {
+      if (prev.includes(key)) {
+        if (prev.length === 1) return prev
+        return prev.filter(k => k !== key)
+      }
+      return [...prev, key]
+    })
+  }
 
   return (
     <div>
@@ -240,7 +283,7 @@ export function PlayerProfile({ playerId, season, onBack }: PlayerProfileProps) 
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
-        Back to search
+        {backLabel || 'Back to search'}
       </button>
 
       {/* Player header */}
@@ -553,11 +596,35 @@ export function PlayerProfile({ playerId, season, onBack }: PlayerProfileProps) 
         </div>
       )}
 
-      {/* Points trend chart */}
-      {trendData.length > 1 && (
+      {/* Stat trend chart */}
+      {trendLabels.length > 1 && (
         <div className="border border-[#1e1e2a] rounded-xl p-5 mb-6">
-          <h3 className="font-mono font-bold text-[#fbbf24] text-sm mb-4">Points Trend (Last {trendData.length} Games)</h3>
-          <PointsTrendChart data={trendData} />
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <h3 className="font-mono font-bold text-[#fbbf24] text-sm">
+              Stat Trends (Last {trendLabels.length} Games)
+            </h3>
+            <div className="flex flex-wrap gap-1.5">
+              {statSeriesConfig.map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => toggleStat(key)}
+                  className={`px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
+                    activeStats.includes(key)
+                      ? 'text-[#0a0a0f]'
+                      : 'bg-[#111118] border border-[#1e1e2a] text-[#5a5a64] hover:text-[#8a8a94] hover:border-[#3a3a44]'
+                  }`}
+                  style={activeStats.includes(key) ? { backgroundColor: STAT_COLORS[key] } : undefined}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <MultiStatTrendChart
+            labels={trendLabels}
+            series={allSeries}
+            activeSeries={activeStats}
+          />
         </div>
       )}
 
