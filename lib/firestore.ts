@@ -11,6 +11,7 @@ import {
   where,
   orderBy,
   limit,
+  startAfter,
   increment,
   runTransaction,
   writeBatch,
@@ -265,6 +266,29 @@ export async function getPublishedArticles(opts?: {
   const q = query(collection(db, "articles"), ...constraints);
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ArticleDoc);
+}
+
+export async function getPublishedArticlesPaginated(opts?: {
+  series?: string;
+  pageSize?: number;
+  lastPublishedAt?: Timestamp;
+}): Promise<{ articles: ArticleDoc[]; hasMore: boolean }> {
+  const pageSize = opts?.pageSize || 9;
+  const constraints: Parameters<typeof query>[1][] = [
+    where("status", "==", "published"),
+    orderBy("publishedAt", "desc"),
+  ];
+  if (opts?.series) constraints.push(where("series", "==", opts.series));
+  if (opts?.lastPublishedAt) constraints.push(startAfter(opts.lastPublishedAt));
+  constraints.push(limit(pageSize + 1));
+  const q = query(collection(db, "articles"), ...constraints);
+  const snap = await getDocs(q);
+  const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ArticleDoc);
+  const hasMore = docs.length > pageSize;
+  return {
+    articles: hasMore ? docs.slice(0, pageSize) : docs,
+    hasMore,
+  };
 }
 
 export async function getFeaturedArticles(): Promise<ArticleDoc[]> {

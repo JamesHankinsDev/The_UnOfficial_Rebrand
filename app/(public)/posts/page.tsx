@@ -1,10 +1,16 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { getPublishedArticles, getUpcomingScheduled, ArticleDoc } from '@/lib/firestore'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import {
+  getPublishedArticles,
+  getPublishedArticlesPaginated,
+  getUpcomingScheduled,
+  ArticleDoc,
+} from '@/lib/firestore'
 import { ArticleCard } from '@/components/articles/ArticleCard'
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
+import Fuse from 'fuse.js'
 
 const SERIES_TABS = [
   { value: '', label: 'All' },
@@ -13,29 +19,134 @@ const SERIES_TABS = [
   { value: 'picks-pops-rolls', label: 'Picks Pops & Rolls' },
 ]
 
+const PAGE_SIZE = 9
+
 function PostsContent() {
   const searchParams = useSearchParams()
   const seriesParam = searchParams.get('series') || ''
+
   const [activeSeries, setActiveSeries] = useState(seriesParam)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+
+  // Paginated browsing state
   const [articles, setArticles] = useState<ArticleDoc[]>([])
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+
+  // Search state — all articles fetched once for Fuse.js
+  const [allArticles, setAllArticles] = useState<ArticleDoc[] | null>(null)
+  const [loadingSearch, setLoadingSearch] = useState(false)
+
   const [upcoming, setUpcoming] = useState<ArticleDoc[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  const debounceTimer = useRef<ReturnType<typeof setTimeout>>(null)
+
+  const isSearching = debouncedQuery.length >= 2
+
+  // Debounce search input
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value)
+    if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    debounceTimer.current = setTimeout(() => {
+      setDebouncedQuery(value.trim())
+    }, 300)
+  }, [])
+
+  // Load initial paginated articles + upcoming
   useEffect(() => {
+    if (isSearching) return
     setLoading(true)
     setError('')
+    setAllArticles(null) // reset search cache when filters change
     Promise.all([
-      getPublishedArticles(activeSeries ? { series: activeSeries } : {}).catch(() => [] as ArticleDoc[]),
+      getPublishedArticlesPaginated({
+        series: activeSeries || undefined,
+        pageSize: PAGE_SIZE,
+      }).catch(() => ({ articles: [] as ArticleDoc[], hasMore: false })),
       getUpcomingScheduled().catch(() => [] as ArticleDoc[]),
     ])
-      .then(([pub, sched]) => {
-        setArticles(pub)
+      .then(([result, sched]) => {
+        setArticles(result.articles)
+        setHasMore(result.hasMore)
         setUpcoming(sched)
       })
       .catch(() => setError('Could not load articles. Check your connection and try again.'))
       .finally(() => setLoading(false))
+  }, [activeSeries, isSearching])
+
+  // Load more (cursor-based)
+  const handleLoadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || articles.length === 0) return
+    setLoadingMore(true)
+    try {
+      const lastArticle = articles[articles.length - 1]
+      const result = await getPublishedArticlesPaginated({
+        series: activeSeries || undefined,
+        pageSize: PAGE_SIZE,
+        lastPublishedAt: lastArticle.publishedAt ?? undefined,
+      })
+      setArticles((prev) => [...prev, ...result.articles])
+      setHasMore(result.hasMore)
+    } catch {
+      // silently fail — user can retry
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [loadingMore, hasMore, articles, activeSeries])
+
+  // Fetch all articles for search (once, cached until series changes)
+  useEffect(() => {
+    if (!isSearching) return
+    if (allArticles !== null) return // already cached
+    setLoadingSearch(true)
+    getPublishedArticles(activeSeries ? { series: activeSeries } : {})
+      .then((docs) => setAllArticles(docs))
+      .catch(() => setError('Search failed. Please try again.'))
+      .finally(() => setLoadingSearch(false))
+  }, [isSearching, activeSeries, allArticles])
+
+  // Reset search cache when series changes
+  useEffect(() => {
+    setAllArticles(null)
   }, [activeSeries])
+
+  // Prepare searchable articles with HTML-stripped content
+  const searchableArticles = useMemo(() => {
+    if (!allArticles) return null
+    return allArticles.map((a) => ({
+      ...a,
+      searchContent: a.content
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim(),
+    }))
+  }, [allArticles])
+
+  // Fuse.js search
+  const searchResults = useMemo(() => {
+    if (!isSearching || !searchableArticles) return null
+    const fuse = new Fuse(searchableArticles, {
+      keys: [
+        { name: 'title', weight: 0.35 },
+        { name: 'searchContent', weight: 0.3 },
+        { name: 'excerpt', weight: 0.15 },
+        { name: 'tags', weight: 0.1 },
+        { name: 'authorName', weight: 0.1 },
+      ],
+      threshold: 0.4,
+      ignoreLocation: true,
+      minMatchCharLength: 2,
+    })
+    return fuse.search(debouncedQuery).map((r) => r.item)
+  }, [isSearching, searchableArticles, debouncedQuery])
+
+  const displayedArticles = isSearching ? (searchResults ?? []) : articles
+  const showLoading = loading || (isSearching && loadingSearch)
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -45,9 +156,48 @@ function PostsContent() {
         <p className="text-[#8a8a94]">Everything we&apos;ve cooked up. Sorted by latest.</p>
       </div>
 
+      {/* Search bar */}
+      <div className="relative mb-6">
+        <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+          <svg
+            className="w-4 h-4 text-[#5a5a64]"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+            />
+          </svg>
+        </div>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          placeholder="Search articles by title, topic, or author..."
+          className="w-full bg-[#111118] border border-[#1e1e2a] rounded-lg pl-11 pr-4 py-3 text-sm text-[#e8e6e3] placeholder-[#5a5a64] font-mono focus:outline-none focus:border-[#fbbf24]/50 focus:ring-1 focus:ring-[#fbbf24]/20 transition-colors"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => {
+              setSearchQuery('')
+              setDebouncedQuery('')
+            }}
+            className="absolute inset-y-0 right-0 flex items-center pr-4 text-[#5a5a64] hover:text-[#e8e6e3] transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+
       {/* Series filter tabs */}
       <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-1">
-        {SERIES_TABS.map(tab => (
+        {SERIES_TABS.map((tab) => (
           <button
             key={tab.value}
             onClick={() => setActiveSeries(tab.value)}
@@ -62,8 +212,23 @@ function PostsContent() {
         ))}
       </div>
 
+      {/* Result count when searching */}
+      {isSearching && !showLoading && (
+        <div className="mb-6 text-sm font-mono text-[#5a5a64]">
+          {displayedArticles.length} result{displayedArticles.length !== 1 ? 's' : ''} for &ldquo;{debouncedQuery}&rdquo;
+          {activeSeries && (
+            <span>
+              {' '}in{' '}
+              <span className="text-[#fbbf24]">
+                {SERIES_TABS.find((t) => t.value === activeSeries)?.label}
+              </span>
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Upcoming scheduled */}
-      {upcoming.length > 0 && !activeSeries && (
+      {upcoming.length > 0 && !activeSeries && !isSearching && (
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-4">
             <div className="font-mono text-xs tracking-widest text-[#5a5a64] uppercase">
@@ -72,7 +237,7 @@ function PostsContent() {
             <div className="flex-1 h-px bg-[#1e1e2a]" />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {upcoming.map(article => (
+            {upcoming.map((article) => (
               <ArticleCard key={article.id} article={article} />
             ))}
           </div>
@@ -82,7 +247,7 @@ function PostsContent() {
       {/* Article grid */}
       {error ? (
         <div className="text-center py-24 text-brand-muted font-mono text-sm">{error}</div>
-      ) : loading ? (
+      ) : showLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <div
@@ -91,16 +256,33 @@ function PostsContent() {
             />
           ))}
         </div>
-      ) : articles.length === 0 ? (
+      ) : displayedArticles.length === 0 ? (
         <div className="text-center py-24 text-[#5a5a64] font-mono">
-          Nothing published yet. Don&apos;t sleep on the content calendar.
+          {isSearching
+            ? 'No articles match your search. Try different keywords.'
+            : "Nothing published yet. Don\u2019t sleep on the content calendar."}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {articles.map(article => (
-            <ArticleCard key={article.id} article={article} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {displayedArticles.map((article) => (
+              <ArticleCard key={article.id} article={article} />
+            ))}
+          </div>
+
+          {/* Load More button — only in paginated (non-search) mode */}
+          {!isSearching && hasMore && (
+            <div className="flex justify-center mt-10">
+              <button
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="px-6 py-3 text-sm font-mono tracking-widest uppercase border border-[#1e1e2a] rounded-lg text-[#8a8a94] hover:text-[#fbbf24] hover:border-[#fbbf24]/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loadingMore ? 'Loading...' : 'Load More'}
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
