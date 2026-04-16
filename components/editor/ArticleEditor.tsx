@@ -243,6 +243,20 @@ export function ArticleEditor({ editId }: ArticleEditorProps) {
           )}
         </div>
 
+        {editId && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start"
+            onClick={async () => {
+              await handleSave(status, true)
+              window.open(`/dashboard/articles/${editId}/preview`, '_blank')
+            }}
+          >
+            Preview
+          </Button>
+        )}
+
         <div className="h-px bg-[#1e1e2a]" />
 
         {/* Metadata */}
@@ -324,10 +338,18 @@ export function ArticleEditor({ editId }: ArticleEditorProps) {
 
         <div className="h-px bg-[#1e1e2a]" />
 
-        {/* Read time */}
-        <div className="text-xs font-mono text-[#5a5a64]">
-          Estimated read time:{' '}
-          <span className="text-[#8a8a94]">{readTime} min</span>
+        {/* Stats */}
+        <div className="text-xs font-mono text-[#5a5a64] flex flex-col gap-1">
+          <div>
+            Words:{' '}
+            <span className="text-[#8a8a94]">
+              {content.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length.toLocaleString()}
+            </span>
+          </div>
+          <div>
+            Read time:{' '}
+            <span className="text-[#8a8a94]">{readTime} min</span>
+          </div>
         </div>
       </aside>
     </div>

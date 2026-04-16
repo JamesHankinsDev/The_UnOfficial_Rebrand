@@ -2,9 +2,6 @@ import React from 'react'
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import type { Metadata } from 'next'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import rehypeRaw from 'rehype-raw'
 import { getArticleBySlug, getPublishedArticles } from '@/lib/firestore'
 import { ArticleJsonLd } from '@/components/seo/JsonLd'
 import { SeriesBadge } from '@/components/articles/SeriesBadge'
@@ -129,14 +126,10 @@ export default async function ArticlePage({ params }: Props) {
         )}
 
         {/* Article body */}
-        <div className="prose prose-invert max-w-none mb-16">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeRaw]}
-          >
-            {article.content}
-          </ReactMarkdown>
-        </div>
+        <div
+          className="prose prose-invert max-w-none mb-16"
+          dangerouslySetInnerHTML={{ __html: article.content }}
+        />
 
         {/* Tags */}
         {article.tags.length > 0 && (
