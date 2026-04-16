@@ -13,7 +13,12 @@ export function calcReadTime(content: string): number {
 }
 
 export function generateExcerpt(content: string, maxLen = 150): string {
-  const stripped = content.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
+  const stripped = content
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
   if (stripped.length <= maxLen) return stripped
   return stripped.slice(0, maxLen).replace(/\s+\S*$/, '') + '…'
 }

@@ -125,7 +125,7 @@ export default function ArticlePreviewPage() {
 
           {/* Article body */}
           <div
-            className="prose prose-invert max-w-none mb-16"
+            className={`max-w-none mb-16 ${article.content.includes('<style>') ? '' : 'prose prose-invert'}`}
             dangerouslySetInnerHTML={{ __html: article.content }}
           />
 

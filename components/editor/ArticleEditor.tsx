@@ -58,6 +58,7 @@ export function ArticleEditor({ editId }: ArticleEditorProps) {
   const [tweetPreview, setTweetPreview] = useState('')
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
+  const [sourceMode, setSourceMode] = useState(false)
 
   // Auto-save (preserves current status)
   useEffect(() => {
@@ -177,12 +178,45 @@ export function ArticleEditor({ editId }: ArticleEditorProps) {
           </div>
         </div>
 
-        <RichTextEditor
-          content={content}
-          onChange={setContent}
-          articleId={articleId}
-          placeholder="Start writing. Make it count."
-        />
+        <div className="flex items-center gap-2 mb-4">
+          <button
+            onClick={() => setSourceMode(false)}
+            className={`px-3 py-1 text-xs font-mono rounded transition-colors cursor-pointer ${
+              !sourceMode
+                ? 'bg-[#1e1e2a] text-[#e8e6e3]'
+                : 'text-[#5a5a64] hover:text-[#8a8a94]'
+            }`}
+          >
+            Editor
+          </button>
+          <button
+            onClick={() => setSourceMode(true)}
+            className={`px-3 py-1 text-xs font-mono rounded transition-colors cursor-pointer ${
+              sourceMode
+                ? 'bg-[#1e1e2a] text-[#e8e6e3]'
+                : 'text-[#5a5a64] hover:text-[#8a8a94]'
+            }`}
+          >
+            Source HTML
+          </button>
+        </div>
+
+        {sourceMode ? (
+          <textarea
+            value={content}
+            onChange={e => setContent(e.target.value)}
+            className="w-full min-h-[600px] bg-[#111118] border border-[#1e1e2a] rounded-lg p-4 font-mono text-sm text-[#e8e6e3] placeholder:text-[#3a3a44] focus:outline-none focus:border-[#fbbf24]/30 resize-y"
+            placeholder="Paste or write raw HTML here."
+            spellCheck={false}
+          />
+        ) : (
+          <RichTextEditor
+            content={content}
+            onChange={setContent}
+            articleId={articleId}
+            placeholder="Start writing. Make it count."
+          />
+        )}
       </div>
 
       {/* Sidebar */}
