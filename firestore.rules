@@ -106,6 +106,16 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
     }
 
+    // /comments/{commentId} — article comments
+    // - Public reads (anyone can see comments)
+    // - No client-side creates (all writes go through API route + Admin SDK)
+    // - Only admins can update/delete via client SDK
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if false;
+      allow update, delete: if isAdmin();
+    }
+
     // /briefs/{briefId} — auto-generated newsletter briefs
     // - Writers and admins can read the dashboard brief view
     // - All writes go through the Admin SDK in API routes (no client writes)

@@ -12,6 +12,7 @@ import { EmailSubscribe } from '@/components/social/EmailSubscribe'
 import { ArticleCard } from '@/components/articles/ArticleCard'
 import { formatDate } from '@/lib/utils'
 import { ViewTracker } from '@/components/articles/ViewTracker'
+import { CommentSection } from '@/components/articles/CommentSection'
 
 export const revalidate = 60
 
@@ -157,6 +158,9 @@ export default async function ArticlePage({ params }: Props) {
             ))}
           </div>
         )}
+
+        {/* Comments */}
+        <CommentSection articleId={article.id} />
 
         {/* Share footer */}
         <div className="mb-12 p-6 bg-[#111118] border border-[#1e1e2a] rounded-xl">
