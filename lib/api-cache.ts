@@ -53,7 +53,7 @@ export async function cached<T>(
  * or after a deployment to force fresh API fetches.
  */
 export function purgeAllCache(): void {
-  revalidateTag("all-api-cache");
+  revalidateTag("all-api-cache", "max");
   inflight.clear();
 }
 
@@ -61,7 +61,7 @@ export function purgeAllCache(): void {
  * Purge a specific cache key.
  */
 export function purgeCache(key: string): void {
-  revalidateTag(key);
+  revalidateTag(key, "max");
   inflight.delete(key);
 }
 
