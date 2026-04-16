@@ -11,6 +11,7 @@ import { useEffect } from 'react'
 const navItems = [
   { href: '/dashboard/articles', label: 'My Articles' },
   { href: '/dashboard/articles/new', label: '+ New Article' },
+  { href: '/dashboard/brief', label: 'Morning Brief' },
   { href: '/dashboard/analytics', label: 'Analytics' },
 ]
 

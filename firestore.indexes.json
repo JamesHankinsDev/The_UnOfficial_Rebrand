@@ -58,6 +58,14 @@
         { "fieldPath": "rarity", "order": "ASCENDING" },
         { "fieldPath": "acquiredAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "briefs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "articleType", "order": "ASCENDING" },
+        { "fieldPath": "generatedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

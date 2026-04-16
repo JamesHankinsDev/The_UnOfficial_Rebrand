@@ -70,6 +70,43 @@ export interface SubscriberDoc {
   source: string;
 }
 
+// --- Briefs ---
+
+export type BriefDay = "monday" | "wednesday" | "friday";
+export type BriefArticleType =
+  | "value_meal"
+  | "mix_tape"
+  | "residue"
+  | "picks_pops_rolls";
+export type BriefStatus = "pending" | "ready" | "used";
+
+export interface ValuePlay {
+  playerId: number;
+  playerName: string;
+  team: string;
+  pra: number;
+  capPct: number | null;
+  salary: number | null;
+  contextNote: string;
+}
+
+export interface BriefContent {
+  topValuePlays: ValuePlay[];
+  narrativeHook: string;
+  dataAnomalies: string[];
+  injuryContext: string;
+}
+
+export interface BriefDoc {
+  id: string;
+  day: BriefDay;
+  articleType: BriefArticleType;
+  content: BriefContent;
+  status: BriefStatus;
+  createdAt: Timestamp;
+  generatedAt: Timestamp;
+}
+
 // --- Users ---
 
 export async function getUser(uid: string): Promise<UserDoc | null> {
@@ -330,6 +367,23 @@ export async function getAllSubscribers(): Promise<SubscriberDoc[]> {
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as SubscriberDoc);
+}
+
+// --- Briefs ---
+
+export async function getLatestBriefForType(
+  articleType: BriefArticleType,
+): Promise<BriefDoc | null> {
+  const q = query(
+    collection(db, "briefs"),
+    where("articleType", "==", articleType),
+    orderBy("generatedAt", "desc"),
+    limit(1),
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return { id: d.id, ...d.data() } as BriefDoc;
 }
 
 // --- TCG: Wallets ---

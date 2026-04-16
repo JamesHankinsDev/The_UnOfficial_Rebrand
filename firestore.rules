@@ -105,5 +105,13 @@ service cloud.firestore {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
     }
+
+    // /briefs/{briefId} — auto-generated newsletter briefs
+    // - Writers and admins can read the dashboard brief view
+    // - All writes go through the Admin SDK in API routes (no client writes)
+    match /briefs/{briefId} {
+      allow read: if isWriter() || isAdmin();
+      allow write: if false;
+    }
   }
 }
