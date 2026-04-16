@@ -1,5 +1,6 @@
 import React from 'react'
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
 import { getArticleBySlug, getPublishedArticles } from '@/lib/firestore'
@@ -96,8 +97,33 @@ export default async function ArticlePage({ params }: Props) {
       )}
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Breadcrumbs */}
+        <nav className={`${article.coverImageUrl ? '-mt-20 relative' : 'pt-12'} mb-4`} aria-label="Breadcrumb">
+          <ol className="flex items-center gap-1.5 text-xs font-mono text-[#5a5a64]">
+            <li><Link href="/" className="hover:text-[#fbbf24] transition-colors">Home</Link></li>
+            <li><span className="mx-0.5">/</span></li>
+            <li><Link href="/posts" className="hover:text-[#fbbf24] transition-colors">Articles</Link></li>
+            {article.series && (
+              <>
+                <li><span className="mx-0.5">/</span></li>
+                <li>
+                  <Link
+                    href={`/posts?series=${article.series}`}
+                    className="hover:text-[#fbbf24] transition-colors"
+                  >
+                    {article.series === 'value-meal' ? 'Value Meal'
+                      : article.series === 'trajectory-twins' ? 'Trajectory Twins'
+                      : article.series === 'picks-pops-rolls' ? 'Picks Pops & Rolls'
+                      : article.series}
+                  </Link>
+                </li>
+              </>
+            )}
+          </ol>
+        </nav>
+
         {/* Article header */}
-        <header className={`${article.coverImageUrl ? '-mt-20 relative' : 'pt-12'} mb-8`}>
+        <header className="mb-8">
           <div className="flex items-center gap-2 mb-4 flex-wrap">
             <SeriesBadge series={article.series} />
             <ReadTimeDisplay minutes={article.readTimeMinutes} />
@@ -149,12 +175,13 @@ export default async function ArticlePage({ params }: Props) {
           <div className="flex items-center gap-2 flex-wrap mb-12 pt-8 border-t border-[#1e1e2a]">
             <span className="text-xs font-mono text-[#5a5a64] uppercase tracking-widest">Tags:</span>
             {article.tags.map(tag => (
-              <span
+              <Link
                 key={tag}
-                className="px-2 py-0.5 text-xs font-mono text-[#8a8a94] bg-[#111118] border border-[#1e1e2a] rounded"
+                href={`/posts?tag=${encodeURIComponent(tag)}`}
+                className="px-2 py-0.5 text-xs font-mono text-[#8a8a94] bg-[#111118] border border-[#1e1e2a] rounded hover:text-[#fbbf24] hover:border-[#fbbf24]/30 transition-colors"
               >
                 {tag}
-              </span>
+              </Link>
             ))}
           </div>
         )}

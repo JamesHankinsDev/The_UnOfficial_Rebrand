@@ -57,9 +57,26 @@ export function ArticleCard({ article, baseUrl = '' }: ArticleCardProps) {
             {article.title}
           </h3>
         </Link>
-        <p className="text-sm text-[#8a8a94] leading-relaxed mb-4 line-clamp-3">
+        <p className="text-sm text-[#8a8a94] leading-relaxed mb-3 line-clamp-3">
           {article.excerpt}
         </p>
+        {article.tags.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap mb-3">
+            {article.tags.slice(0, 3).map((tag) => (
+              <Link
+                key={tag}
+                href={`/posts?tag=${encodeURIComponent(tag)}`}
+                className="px-1.5 py-0.5 text-[10px] font-mono text-[#5a5a64] bg-[#0a0a0f] border border-[#1e1e2a] rounded hover:text-[#fbbf24] hover:border-[#fbbf24]/30 transition-colors"
+
+              >
+                {tag}
+              </Link>
+            ))}
+            {article.tags.length > 3 && (
+              <span className="text-[10px] font-mono text-[#5a5a64]">+{article.tags.length - 3}</span>
+            )}
+          </div>
+        )}
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="text-xs font-mono text-[#5a5a64] flex items-center gap-1.5">
             <span>{article.authorName}</span>
