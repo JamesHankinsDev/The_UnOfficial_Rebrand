@@ -142,7 +142,7 @@ interface WeeklySnapshotOptions {
   minGames?: number
   /** Minimum minutes per game to qualify. Default 15. */
   minMpg?: number
-  /** How many top players (by PRA) to enrich with contract data. Default 40. */
+  /** How many top players (by PRA) to enrich with contract data. Default 20. */
   topN?: number
   /** Days of history to pull. Default 7. */
   days?: number
@@ -160,7 +160,7 @@ export async function getWeeklyPlayerSnapshots(
   const {
     minGames = 3,
     minMpg = 15,
-    topN = 40,
+    topN = 20,
     days = 7,
     season = CURRENT_SEASON,
   } = opts

@@ -1,8 +1,16 @@
 {
   "crons": [
     {
-      "path": "/api/generate-brief",
+      "path": "/api/generate-brief?type=value_meal",
       "schedule": "0 10 * * 1"
+    },
+    {
+      "path": "/api/generate-brief?type=mix_tape",
+      "schedule": "0 10 * * 3"
+    },
+    {
+      "path": "/api/generate-brief",
+      "schedule": "0 10 * * 5"
     }
   ]
 }

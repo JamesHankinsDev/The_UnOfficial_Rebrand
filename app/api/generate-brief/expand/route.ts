@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server'
-import { expandValuePlay } from '@/lib/generators/valueMealBrief'
+import { expandPlay } from '@/lib/generators/shared'
 import type { ValuePlay } from '@/lib/firestore'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
 
 function isSignedIn(request: Request): boolean {
-  // Match the existing middleware's presence-based __session cookie check.
-  // Phase 1 — lax but consistent with the rest of the dashboard.
   const cookie = request.headers.get('cookie') ?? ''
   return /(?:^|;\s*)__session=[^;]/.test(cookie)
 }
@@ -33,11 +31,12 @@ export async function POST(request: Request) {
     const body = await request.json()
     const play = body?.play
     const surroundingContext: string = body?.surroundingContext ?? ''
+    const briefType: string = body?.briefType ?? 'Value Meal'
     if (!isValuePlay(play)) {
       return NextResponse.json({ error: 'Invalid play payload' }, { status: 400 })
     }
 
-    const text = await expandValuePlay(play, surroundingContext)
+    const text = await expandPlay(play, surroundingContext, briefType)
     return NextResponse.json({ text })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

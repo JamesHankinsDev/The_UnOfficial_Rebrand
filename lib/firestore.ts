@@ -95,6 +95,7 @@ export interface BriefContent {
   narrativeHook: string;
   dataAnomalies: string[];
   injuryContext: string;
+  tweetableBlurbs: string[];
 }
 
 export interface BriefDoc {
@@ -377,6 +378,18 @@ export async function getLatestBriefForType(
   const q = query(
     collection(db, "briefs"),
     where("articleType", "==", articleType),
+    orderBy("generatedAt", "desc"),
+    limit(1),
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return { id: d.id, ...d.data() } as BriefDoc;
+}
+
+export async function getLatestBrief(): Promise<BriefDoc | null> {
+  const q = query(
+    collection(db, "briefs"),
     orderBy("generatedAt", "desc"),
     limit(1),
   );
