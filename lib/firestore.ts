@@ -51,6 +51,7 @@ export interface ArticleDoc {
   createdAt: Timestamp;
   updatedAt: Timestamp;
   readTimeMinutes: number;
+  viewCount?: number;
   tweetPreview?: string;
 }
 

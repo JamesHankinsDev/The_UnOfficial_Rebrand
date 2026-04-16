@@ -5,6 +5,7 @@ import { CartProvider } from "@/contexts/CartContext";
 import { CartDrawer } from "@/components/merch/CartDrawer";
 import { Toaster } from "react-hot-toast";
 import { OrganizationJsonLd, WebSiteJsonLd } from "@/components/seo/JsonLd";
+import { Analytics } from "@vercel/analytics/next";
 
 const baseUrl =
   process.env.NEXT_PUBLIC_BASE_URL || "https://the-un-official.com";
@@ -94,6 +95,7 @@ export default function RootLayout({
           <CartProvider>
             {children}
             <CartDrawer />
+            <Analytics />
             <Toaster
               position="bottom-right"
               toastOptions={{
