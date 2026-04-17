@@ -7,15 +7,20 @@ import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { useCart } from '@/hooks/useCart'
 import { logout } from '@/lib/auth'
+import { features } from '@/lib/features'
 
-const navLinks = [
+const allNavLinks = [
   { href: '/posts', label: 'Articles' },
-  { href: '/trade-machine', label: 'Trade' },
+  { href: '/trade-machine', label: 'Trade', gate: 'tradeMachine' as const },
   { href: '/trivia', label: 'Trivia' },
-  { href: '/cards', label: 'Cards' },
+  { href: '/cards', label: 'Cards', gate: 'cards' as const },
   { href: '/merch', label: 'Merch' },
   { href: '/about', label: 'About' },
 ]
+
+const navLinks = allNavLinks.filter(
+  link => !link.gate || features[link.gate],
+)
 
 export function Navbar() {
   const pathname = usePathname()
