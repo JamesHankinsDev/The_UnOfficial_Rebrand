@@ -80,3 +80,19 @@ export const TTL = {
   /** 24 hours — teams list, trivia pool */
   DAY: 24 * 60 * 60 * 1000,
 } as const;
+
+// ── HTTP cache headers for browser/CDN caching ─────────────────────────────
+
+/**
+ * Build Cache-Control + CDN headers for a given TTL.
+ * - `s-maxage`: CDN cache duration (full TTL)
+ * - `max-age`: browser cache (shorter, 1/3 of TTL, min 30s)
+ * - `stale-while-revalidate`: serve stale while refreshing in background
+ */
+export function cacheHeaders(ttlMs: number): HeadersInit {
+  const cdnSeconds = Math.max(1, Math.round(ttlMs / 1000));
+  const browserSeconds = Math.max(30, Math.round(cdnSeconds / 3));
+  return {
+    "Cache-Control": `public, s-maxage=${cdnSeconds}, max-age=${browserSeconds}, stale-while-revalidate=${cdnSeconds * 2}`,
+  };
+}

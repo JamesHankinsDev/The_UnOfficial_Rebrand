@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getApi, getApiKey, CURRENT_SEASON } from "@/lib/balldontlie";
+import { getApi, getApiKey, getTeamsList, CURRENT_SEASON } from "@/lib/balldontlie";
 import { cached, TTL } from "@/lib/api-cache";
 
 const BASE_URL = "https://api.balldontlie.io/v1";
@@ -59,18 +59,8 @@ interface RawLeader {
   value: number;
 }
 
-type TeamLookup = { id: number; abbreviation: string; full_name: string };
-
-async function getTeamsMap() {
-  const teams = await cached<TeamLookup[]>("teams-list", TTL.DAY, async () => {
-    const apiKey = getApiKey();
-    const res = await fetch(`${BASE_URL}/teams`, {
-      headers: { Authorization: apiKey },
-    });
-    if (!res.ok) throw new Error(`Teams API returned ${res.status}`);
-    const json = await res.json();
-    return json.data ?? json;
-  });
+async function getTeamAbbrMap() {
+  const teams = await getTeamsList();
   const map = new Map<number, string>();
   for (const t of teams) map.set(t.id, t.abbreviation);
   return map;
@@ -128,7 +118,7 @@ async function getComputedLeaders(
 }
 
 async function getAllLeaders() {
-  const teams = await getTeamsMap();
+  const teams = await getTeamAbbrMap();
 
   const coreStats = [
     { stat: "pts", label: "PTS" },

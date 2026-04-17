@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getApi, CURRENT_SEASON } from '@/lib/balldontlie'
-import { cached, TTL } from '@/lib/api-cache'
+import { cached, cacheHeaders, TTL } from '@/lib/api-cache'
 
 export async function GET(request: Request) {
   try {
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
       api.nba.getStandings({ season })
     )
 
-    return NextResponse.json(res.data)
+    return NextResponse.json(res.data, { headers: cacheHeaders(TTL.MEDIUM) })
   } catch (error) {
     console.error('Standings error:', error)
     return NextResponse.json({ error: 'Failed to fetch standings' }, { status: 500 })

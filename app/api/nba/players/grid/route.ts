@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getApiKey, CURRENT_SEASON, SALARY_CAP_USD } from '@/lib/balldontlie'
-import { cached, TTL } from '@/lib/api-cache'
+import { getApiKey, CURRENT_SEASON, SALARY_CAP_USD, getTeamsMap } from '@/lib/balldontlie'
+import { cached, cacheHeaders, TTL } from '@/lib/api-cache'
 
 const BASE_URL = 'https://api.balldontlie.io/v1'
 const BASE_URL_NBA = 'https://api.balldontlie.io/nba/v1'
@@ -29,19 +29,6 @@ interface RawLeader {
 }
 
 type TeamInfo = { id: number; abbreviation: string; full_name: string }
-
-async function getTeamsMap(): Promise<Map<number, { abbreviation: string; full_name: string }>> {
-  const teams = await cached<TeamInfo[]>('teams-list', TTL.DAY, async () => {
-    const apiKey = getApiKey()
-    const res = await fetch(`${BASE_URL}/teams`, { headers: { Authorization: apiKey } })
-    if (!res.ok) throw new Error(`Teams API returned ${res.status}`)
-    const json = await res.json()
-    return json.data ?? json
-  })
-  const map = new Map<number, { abbreviation: string; full_name: string }>()
-  for (const t of teams) map.set(t.id, { abbreviation: t.abbreviation, full_name: t.full_name })
-  return map
-}
 
 async function fetchLeadersForStat(stat: string, season: number): Promise<RawLeader[]> {
   return cached(`leaders-${stat}-${season}`, TTL.MEDIUM, async () => {
@@ -140,17 +127,16 @@ interface RawStat {
 }
 
 async function buildSeasonGrid(season: number, skipQualification = false): Promise<GridPlayer[]> {
-  // Fetch all 5 stat leaders + minutes in parallel
-  const [ptsRaw, rebRaw, astRaw, stlRaw, blkRaw, minRaw] = await Promise.all([
+  // Fetch all 5 stat leaders + minutes + teams in parallel
+  const [ptsRaw, rebRaw, astRaw, stlRaw, blkRaw, minRaw, teams] = await Promise.all([
     fetchLeadersForStat('pts', season),
     fetchLeadersForStat('reb', season),
     fetchLeadersForStat('ast', season),
     fetchLeadersForStat('stl', season),
     fetchLeadersForStat('blk', season),
     fetchLeadersForStat('min', season).catch(() => [] as RawLeader[]),
+    getTeamsMap(),
   ])
-
-  const teams = await getTeamsMap()
 
   // Build MPG map
   const mpgMap = new Map<number, number>()
@@ -227,14 +213,14 @@ async function buildSeasonGrid(season: number, skipQualification = false): Promi
 
   qualified.sort((a, b) => b.pts - a.pts)
 
-  // Enrich with draft years
+  // Enrich with draft years + salaries in parallel
   const ids = qualified.map(p => p.player_id)
-  const draftYears = await fetchDraftYears(ids).catch(() => new Map<number, number | null>())
-  for (const p of qualified) p.draft_year = draftYears.get(p.player_id) ?? null
-
-  // Enrich with salaries
-  const salaries = await fetchSalaries(ids).catch(() => new Map<number, number | null>())
+  const [draftYears, salaries] = await Promise.all([
+    fetchDraftYears(ids).catch(() => new Map<number, number | null>()),
+    fetchSalaries(ids).catch(() => new Map<number, number | null>()),
+  ])
   for (const p of qualified) {
+    p.draft_year = draftYears.get(p.player_id) ?? null
     const salary = salaries.get(p.player_id) ?? null
     p.salary = salary
     p.cap_pct = salary != null ? Math.round((salary / SALARY_CAP_USD) * 1000) / 10 : null
@@ -373,7 +359,7 @@ export async function GET(request: Request) {
     if (period === 'season') {
       const cacheKey = skipQual ? `player-grid-season-all-${season}` : `player-grid-season-${season}`
       const grid = await cached(cacheKey, TTL.LONG, () => buildSeasonGrid(season, skipQual))
-      return NextResponse.json(grid)
+      return NextResponse.json(grid, { headers: cacheHeaders(TTL.LONG) })
     }
 
     // Game-count periods (last1, last3, last5, last10) — fetch 30-day window, limit per player
@@ -390,7 +376,7 @@ export async function GET(request: Request) {
       const grid = await cached(cacheKey, TTL.SHORT, () =>
         buildRollingGrid(season, start, end, maxGames),
       )
-      return NextResponse.json(grid)
+      return NextResponse.json(grid, { headers: cacheHeaders(TTL.SHORT) })
     }
 
     // Date-based rolling periods (week, month)
@@ -405,7 +391,7 @@ export async function GET(request: Request) {
 
     const cacheKey = `player-grid-${period}-${start}-${end}`
     const grid = await cached(cacheKey, TTL.SHORT, () => buildRollingGrid(season, start, end))
-    return NextResponse.json(grid)
+    return NextResponse.json(grid, { headers: cacheHeaders(TTL.SHORT) })
   } catch (error) {
     console.error('Player grid error:', error)
     return NextResponse.json({ error: 'Failed to fetch player grid' }, { status: 500 })

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getApiKey, CURRENT_SEASON } from "@/lib/balldontlie";
+import { getApiKey, getTeamsList, CURRENT_SEASON } from "@/lib/balldontlie";
 import { cached, TTL } from "@/lib/api-cache";
 import { buildPlayerPool, type PoolPlayer } from "@/lib/tcg";
 
@@ -57,16 +57,8 @@ interface RawLeader {
 
 type TeamInfo = { id: number; abbreviation: string; full_name: string };
 
-async function getTeamsMap(): Promise<Map<number, TeamInfo>> {
-  const teams = await cached<TeamInfo[]>("teams-list", TTL.DAY, async () => {
-    const apiKey = getApiKey();
-    const res = await fetch(`${BASE_URL}/teams`, {
-      headers: { Authorization: apiKey },
-    });
-    if (!res.ok) throw new Error(`Teams API returned ${res.status}`);
-    const json = await res.json();
-    return json.data ?? json;
-  });
+async function getTeamsFullMap(): Promise<Map<number, TeamInfo>> {
+  const teams = await getTeamsList();
   const map = new Map<number, TeamInfo>();
   for (const t of teams) map.set(t.id, t);
   return map;
@@ -97,7 +89,7 @@ export async function getPlayerPool(season = CURRENT_SEASON): Promise<PoolPlayer
       getNbaPersonIdMap().catch(() => new Map<string, number>()),
     ]);
 
-    const teams = await getTeamsMap();
+    const teams = await getTeamsFullMap();
 
     // Merge all leader lists into a single per-player record
     const playerMap = new Map<

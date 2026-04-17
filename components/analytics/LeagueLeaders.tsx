@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react'
 import { SALARY_CAP_USD } from '@/lib/constants'
+import { StatHeader } from '@/components/ui/StatHeader'
 
 interface LeaderEntry {
   player_id: number
@@ -277,16 +278,16 @@ export function LeagueLeaders({ season, onSelectPlayer, teamFilter }: LeagueLead
                 <th className="text-left px-4 py-2.5">#</th>
                 <th className="text-left px-4 py-2.5">Player</th>
                 <th className="text-left px-3 py-2.5 hidden sm:table-cell">Team</th>
-                <th className="text-center px-3 py-2.5">{statLabel}</th>
+                <StatHeader label={statLabel} />
                 {viewMode === 'value' ? (
                   <>
-                    <th className="text-center px-3 py-2.5 hidden sm:table-cell">Cap %</th>
-                    <th className="text-right px-4 py-2.5 text-[#fbbf24]">{statLabel}/1%</th>
+                    <StatHeader label="Cap%" className="hidden sm:table-cell" />
+                    <StatHeader label={`${statLabel}/1%`} align="right" className="px-4 text-[#fbbf24]" tooltip={`${statLabel} per 1% of salary cap — higher = more efficient`} />
                   </>
                 ) : (
                   <>
-                    <th className="text-center px-3 py-2.5 hidden sm:table-cell">GP</th>
-                    <th className="text-right px-4 py-2.5">Salary</th>
+                    <StatHeader label="GP" className="hidden sm:table-cell" />
+                    <StatHeader label="Salary" align="right" className="px-4" />
                   </>
                 )}
               </tr>

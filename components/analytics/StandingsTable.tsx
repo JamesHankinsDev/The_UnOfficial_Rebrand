@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import { STAT_DESCRIPTIONS } from '@/components/ui/StatHeader'
 
 interface Standing {
   team: {
@@ -334,10 +335,16 @@ function StandingsGroup({
             </th>
             {expanded && (
               <>
-                <th className="text-center px-3 py-2.5">Home</th>
-                <th className="text-center px-3 py-2.5">Road</th>
-                {view !== 'division' && <th className="text-center px-3 py-2.5">Conf</th>}
-                {view === 'division' && <th className="text-center px-3 py-2.5">Div</th>}
+                {['Home', 'Road', ...(view !== 'division' ? ['Conf'] : ['Div'])].map(label => (
+                  <th key={label} className="text-center px-3 py-2.5 relative group">
+                    <span className="border-b border-dotted border-[#3a3a44] cursor-help">{label}</span>
+                    {STAT_DESCRIPTIONS[label] && (
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2.5 py-1.5 bg-[#1e1e2a] border border-[#2e2e3a] rounded-md text-[10px] font-mono text-[#8a8a94] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 shadow-lg">
+                        {STAT_DESCRIPTIONS[label]}
+                      </div>
+                    )}
+                  </th>
+                ))}
               </>
             )}
           </tr>

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { PlayerSearch } from './PlayerSearch'
 import { ComparisonBarChart, MultiStatTrendChart, STAT_COLORS } from './StatChart'
+import { STAT_DESCRIPTIONS } from '@/components/ui/StatHeader'
 
 interface Player {
   id: number
@@ -319,7 +320,14 @@ export function PlayerComparison({ season }: { season: number }) {
 
                   return (
                     <tr key={row.label} className="border-b border-[#1e1e2a] last:border-0">
-                      <td className="px-4 py-2.5 font-mono text-xs text-[#8a8a94]">{row.label}</td>
+                      <td className="px-4 py-2.5 font-mono text-xs text-[#8a8a94] relative group">
+                        <span className={STAT_DESCRIPTIONS[row.label] ? 'border-b border-dotted border-[#3a3a44] cursor-help' : ''}>{row.label}</span>
+                        {STAT_DESCRIPTIONS[row.label] && (
+                          <div className="absolute bottom-full left-0 mb-1 px-2.5 py-1.5 bg-[#1e1e2a] border border-[#2e2e3a] rounded-md text-[10px] font-mono text-[#8a8a94] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 shadow-lg">
+                            {STAT_DESCRIPTIONS[row.label]}
+                          </div>
+                        )}
+                      </td>
                       <td className={`text-center px-4 py-2.5 font-mono text-sm font-bold ${
                         isHigher1 ? 'text-[#fbbf24]' : 'text-[#8a8a94]'
                       }`}>

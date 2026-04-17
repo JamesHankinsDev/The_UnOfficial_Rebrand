@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef } from 'react'
+import { STAT_DESCRIPTIONS } from '@/components/ui/StatHeader'
 
 interface GridPlayer {
   player_id: number
@@ -384,20 +385,30 @@ export function PlayerGrid({ season, onSelectPlayer, teamFilter }: PlayerGridPro
                   <th className="text-left px-3 py-2.5 font-mono text-[10px] text-[#5a5a64] uppercase tracking-wider w-8">
                     #
                   </th>
-                  {activeColumns.map(col => (
-                    <th
-                      key={col.key}
-                      onClick={() => handleSort(col.sortKey)}
-                      className={`px-3 py-2.5 font-mono text-[10px] uppercase tracking-wider cursor-pointer select-none hover:text-[#8a8a94] transition-colors whitespace-nowrap ${
-                        col.align === 'left' ? 'text-left' : col.align === 'right' ? 'text-right' : 'text-center'
-                      } ${sortKey === col.sortKey ? 'text-[#fbbf24]' : 'text-[#5a5a64]'}`}
-                    >
-                      {col.shortLabel || col.label}
-                      {sortKey === col.sortKey && (
-                        <span className="ml-0.5">{sortDir === 'desc' ? '\u25BC' : '\u25B2'}</span>
-                      )}
-                    </th>
-                  ))}
+                  {activeColumns.map(col => {
+                    const desc = STAT_DESCRIPTIONS[col.shortLabel || col.label]
+                    return (
+                      <th
+                        key={col.key}
+                        onClick={() => handleSort(col.sortKey)}
+                        className={`px-3 py-2.5 font-mono text-[10px] uppercase tracking-wider cursor-pointer select-none hover:text-[#8a8a94] transition-colors whitespace-nowrap relative group ${
+                          col.align === 'left' ? 'text-left' : col.align === 'right' ? 'text-right' : 'text-center'
+                        } ${sortKey === col.sortKey ? 'text-[#fbbf24]' : 'text-[#5a5a64]'}`}
+                      >
+                        <span className={desc ? 'border-b border-dotted border-[#3a3a44]' : ''}>
+                          {col.shortLabel || col.label}
+                        </span>
+                        {sortKey === col.sortKey && (
+                          <span className="ml-0.5">{sortDir === 'desc' ? '\u25BC' : '\u25B2'}</span>
+                        )}
+                        {desc && (
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2.5 py-1.5 bg-[#1e1e2a] border border-[#2e2e3a] rounded-md text-[10px] font-mono text-[#8a8a94] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 shadow-lg normal-case tracking-normal">
+                            {desc}
+                          </div>
+                        )}
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody>

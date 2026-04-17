@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getApiKey, CURRENT_SEASON } from "@/lib/balldontlie";
+import { getApiKey, getTeamsMap, CURRENT_SEASON } from "@/lib/balldontlie";
 import { cached, TTL } from "@/lib/api-cache";
 
 const BASE_URL = "https://api.balldontlie.io/v1";
@@ -98,26 +98,6 @@ interface RawLeader {
 }
 
 type TeamInfo = { id: number; abbreviation: string; full_name: string };
-
-async function getTeamsMap(): Promise<
-  Map<number, { abbreviation: string; full_name: string }>
-> {
-  // Cache the raw array (JSON-serializable), convert to Map locally
-  const teams = await cached<TeamInfo[]>("teams-list", TTL.DAY, async () => {
-    const apiKey = getApiKey();
-    const res = await fetch(`${BASE_URL}/teams`, {
-      headers: { Authorization: apiKey },
-    });
-    if (!res.ok) throw new Error(`Teams API returned ${res.status}`);
-    const json = await res.json();
-    return json.data ?? json;
-  });
-  const map = new Map<number, { abbreviation: string; full_name: string }>();
-  for (const t of teams) {
-    map.set(t.id, { abbreviation: t.abbreviation, full_name: t.full_name });
-  }
-  return map;
-}
 
 function isCoreStatType(stat: string): stat is CoreStat {
   return (CORE_STATS as readonly string[]).includes(stat);

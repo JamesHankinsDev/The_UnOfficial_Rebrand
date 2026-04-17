@@ -2,25 +2,38 @@
 
 import React, { useState, useEffect, useMemo } from 'react'
 import { SALARY_CAP_USD } from '@/lib/constants'
+import { useNBATeams } from '@/hooks/useNBATeams'
+import { StatHeader } from '@/components/ui/StatHeader'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts'
 
-interface GridPlayer {
+interface RosterPlayer {
   player_id: number
   first_name: string
   last_name: string
   position: string
+  salary: number
+  is_two_way: boolean
+  team_id: number
   team_abbreviation: string
-  team_full_name: string
-  games_played: number
-  mpg: number
-  pts: number
-  reb: number
-  ast: number
-  pra: number
-  salary: number | null
-  cap_pct: number | null
+  net_rating: number | null
+  minutes_per_game: number | null
+  games_played: number | null
+}
+
+interface TeamRosterData {
+  team: {
+    id: number
+    abbreviation: string
+    full_name: string
+    conference: string
+    division: string
+  }
+  standings: { wins: number; losses: number; conference_rank: number }
+  total_salary: number
+  cap_tier: string
+  roster: RosterPlayer[]
 }
 
 const POS_COLORS: Record<string, string> = {
@@ -52,38 +65,29 @@ interface TeamSalaryExplorerProps {
 }
 
 export function TeamSalaryExplorer({ season, onSelectPlayer }: TeamSalaryExplorerProps) {
-  const [allPlayers, setAllPlayers] = useState<GridPlayer[]>([])
-  const [loading, setLoading] = useState(true)
-  const [selectedTeam, setSelectedTeam] = useState('')
+  const { teams: allTeams, loading: teamsLoading } = useNBATeams()
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null)
+  const [teamData, setTeamData] = useState<TeamRosterData | null>(null)
+  const [rosterLoading, setRosterLoading] = useState(false)
 
+  // Fetch roster when team changes
   useEffect(() => {
-    setLoading(true)
-    fetch(`/api/nba/players/grid?season=${season}&period=season&qualified=false`)
-      .then(r => r.ok ? r.json() : [])
-      .then((data: GridPlayer[]) => setAllPlayers(data))
-      .catch(() => setAllPlayers([]))
-      .finally(() => setLoading(false))
-  }, [season])
+    if (!selectedTeamId) {
+      setTeamData(null)
+      return
+    }
+    setRosterLoading(true)
+    fetch(`/api/nba/trade/team-roster?team_id=${selectedTeamId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((data: TeamRosterData | null) => setTeamData(data))
+      .catch(() => setTeamData(null))
+      .finally(() => setRosterLoading(false))
+  }, [selectedTeamId, season])
 
-  // Unique teams sorted alphabetically
-  const teams = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const p of allPlayers) map.set(p.team_abbreviation, p.team_full_name)
-    return Array.from(map.entries())
-      .map(([abbr, name]) => ({ abbr, name }))
-      .sort((a, b) => a.name.localeCompare(b.name))
-  }, [allPlayers])
-
-  // Filtered roster
-  const roster = useMemo(() => {
-    if (!selectedTeam) return []
-    return allPlayers
-      .filter(p => p.team_abbreviation === selectedTeam)
-      .sort((a, b) => (b.salary ?? 0) - (a.salary ?? 0))
-  }, [allPlayers, selectedTeam])
+  const roster = teamData?.roster ?? []
 
   // Summary stats
-  const totalSalary = roster.reduce((s, p) => s + (p.salary ?? 0), 0)
+  const totalSalary = teamData?.total_salary ?? 0
   const capSpace = SALARY_CAP_USD - totalSalary
   const playerCount = roster.length
 
@@ -112,25 +116,32 @@ export function TeamSalaryExplorer({ season, onSelectPlayer }: TeamSalaryExplore
       <div className="flex items-center gap-3 mb-6">
         <label className="font-mono text-xs text-[#5a5a64] uppercase tracking-wider">Team</label>
         <select
-          value={selectedTeam}
-          onChange={(e) => setSelectedTeam(e.target.value)}
-          disabled={loading}
+          value={selectedTeamId ?? ''}
+          onChange={(e) => {
+            const id = parseInt(e.target.value, 10)
+            setSelectedTeamId(isNaN(id) ? null : id)
+          }}
+          disabled={teamsLoading}
           className="bg-[#0a0a0f] border border-[#1e1e2a] text-[#e8e6e3] text-sm font-mono rounded-lg px-3 py-2 focus:outline-none focus:border-[#fbbf24] transition-colors min-w-[200px]"
         >
           <option value="">Select a team...</option>
-          {teams.map(t => (
-            <option key={t.abbr} value={t.abbr}>{t.name}</option>
+          {allTeams.map(t => (
+            <option key={t.id} value={t.id}>{t.full_name}</option>
           ))}
         </select>
       </div>
 
-      {loading ? (
+      {teamsLoading || rosterLoading ? (
         <div className="flex items-center justify-center py-16">
-          <span className="font-mono text-sm text-[#5a5a64] animate-pulse">Loading player data...</span>
+          <span className="font-mono text-sm text-[#5a5a64] animate-pulse">Loading{rosterLoading ? ' roster' : ''}...</span>
         </div>
-      ) : !selectedTeam ? (
+      ) : !selectedTeamId ? (
         <div className="text-center py-16 font-mono text-sm text-[#5a5a64]">
           Select a team to explore their salary breakdown.
+        </div>
+      ) : !teamData ? (
+        <div className="text-center py-16 font-mono text-sm text-[#5a5a64]">
+          Failed to load roster data.
         </div>
       ) : (
         <div className="space-y-6">
@@ -150,6 +161,22 @@ export function TeamSalaryExplorer({ season, onSelectPlayer }: TeamSalaryExplore
               <div className="font-mono text-[10px] text-[#5a5a64] uppercase tracking-wider mb-1">Players</div>
               <div className="font-mono text-lg font-bold text-[#e8e6e3]">{playerCount}</div>
             </div>
+          </div>
+
+          {/* Record + cap tier */}
+          <div className="flex items-center justify-center gap-4 font-mono text-xs text-[#8a8a94]">
+            <span>Record: {teamData.standings.wins}-{teamData.standings.losses}</span>
+            <span>|</span>
+            <span>Conf Rank: #{teamData.standings.conference_rank}</span>
+            <span>|</span>
+            <span className={
+              teamData.cap_tier === 'under_cap' ? 'text-emerald-400' :
+              teamData.cap_tier === 'over_cap' ? 'text-[#fbbf24]' :
+              teamData.cap_tier === 'luxury_tax' ? 'text-[#f97316]' :
+              'text-red-400'
+            }>
+              {teamData.cap_tier.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+            </span>
           </div>
 
           {/* Position breakdown chart */}
@@ -203,20 +230,21 @@ export function TeamSalaryExplorer({ season, onSelectPlayer }: TeamSalaryExplore
               <thead>
                 <tr className="border-b border-[#1e1e2a] bg-[#111118] font-mono text-[10px] text-[#5a5a64] uppercase tracking-wider">
                   <th className="text-left px-4 py-2.5">#</th>
-                  <th className="text-left px-4 py-2.5">Player</th>
-                  <th className="text-center px-3 py-2.5">Pos</th>
-                  <th className="text-center px-3 py-2.5">MPG</th>
-                  <th className="text-right px-3 py-2.5">Salary</th>
-                  <th className="text-right px-3 py-2.5">Cap%</th>
-                  <th className="text-center px-3 py-2.5">PRA</th>
-                  <th className="text-right px-4 py-2.5">MAV</th>
+                  <StatHeader label="Player" align="left" className="px-4" />
+                  <StatHeader label="Pos" />
+                  <StatHeader label="GP" />
+                  <StatHeader label="MPG" />
+                  <StatHeader label="Salary" align="right" />
+                  <StatHeader label="Cap%" align="right" />
+                  <StatHeader label="Net Rtg" align="right" className="px-4" />
                 </tr>
               </thead>
               <tbody>
                 {roster.map((p, idx) => {
-                  const mav = p.cap_pct != null && p.cap_pct > 0 && p.mpg > 0
-                    ? Math.round((p.pra / p.cap_pct) * (p.mpg / 36) * 100) / 100
+                  const capPct = p.salary > 0
+                    ? Math.round((p.salary / SALARY_CAP_USD) * 1000) / 10
                     : null
+
                   return (
                     <tr
                       key={p.player_id}
@@ -226,18 +254,23 @@ export function TeamSalaryExplorer({ season, onSelectPlayer }: TeamSalaryExplore
                       <td className="px-4 py-2.5 font-mono text-xs text-[#5a5a64]">{idx + 1}</td>
                       <td className="px-4 py-2.5 font-mono text-xs font-bold text-[#e8e6e3] group-hover:text-[#fbbf24] transition-colors whitespace-nowrap">
                         {p.first_name} {p.last_name}
+                        {p.is_two_way && (
+                          <span className="ml-1.5 text-[10px] text-[#5a5a64] font-normal">2W</span>
+                        )}
                       </td>
                       <td className="text-center px-3 py-2.5 font-mono text-xs text-[#8a8a94]">{p.position || '—'}</td>
-                      <td className="text-center px-3 py-2.5 font-mono text-xs text-[#8a8a94]">{p.mpg.toFixed(1)}</td>
+                      <td className="text-center px-3 py-2.5 font-mono text-xs text-[#8a8a94]">{p.games_played ?? '—'}</td>
+                      <td className="text-center px-3 py-2.5 font-mono text-xs text-[#8a8a94]">
+                        {p.minutes_per_game != null ? p.minutes_per_game.toFixed(1) : '—'}
+                      </td>
                       <td className="text-right px-3 py-2.5 font-mono text-xs text-[#e8e6e3] font-bold">{formatSalary(p.salary)}</td>
                       <td className="text-right px-3 py-2.5 font-mono text-xs text-[#8a8a94]">
-                        {p.cap_pct != null ? `${p.cap_pct.toFixed(1)}%` : '—'}
+                        {capPct != null ? `${capPct.toFixed(1)}%` : '—'}
                       </td>
-                      <td className="text-center px-3 py-2.5 font-mono text-xs text-[#fbbf24] font-bold">{p.pra.toFixed(1)}</td>
                       <td className="text-right px-4 py-2.5 font-mono text-xs font-bold">
-                        {mav != null ? (
-                          <span className={mav >= 4 ? 'text-emerald-400' : mav >= 1.5 ? 'text-[#e8e6e3]' : 'text-red-400'}>
-                            {mav.toFixed(2)}
+                        {p.net_rating != null ? (
+                          <span className={p.net_rating >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                            {p.net_rating >= 0 ? '+' : ''}{p.net_rating.toFixed(1)}
                           </span>
                         ) : '—'}
                       </td>
@@ -249,7 +282,7 @@ export function TeamSalaryExplorer({ season, onSelectPlayer }: TeamSalaryExplore
           </div>
 
           <p className="font-mono text-[10px] text-[#3a3a44] text-center">
-            MAV = (PRA / Cap%) x (MPG / 36). Higher = more production per dollar per minute. Cap: ${(SALARY_CAP_USD / 1_000_000).toFixed(1)}M.
+            Net Rtg = point differential per 100 possessions. Positive = team outscores opponents with this player on court. Cap: ${(SALARY_CAP_USD / 1_000_000).toFixed(1)}M.
           </p>
         </div>
       )}

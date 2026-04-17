@@ -31,6 +31,51 @@ export function getApiKey(): string {
   return key
 }
 
+// ── Shared team data (single cache key for all consumers) ──────────────────
+
+export interface NBATeamInfo {
+  id: number
+  abbreviation: string
+  city: string
+  conference: string
+  division: string
+  full_name: string
+  name: string
+}
+
+let _teamsPromise: Promise<NBATeamInfo[]> | null = null
+
+/**
+ * Fetch all NBA teams with a single shared cache key.
+ * Safe to call from multiple endpoints — deduplicates in-flight requests.
+ */
+export async function getTeamsList(): Promise<NBATeamInfo[]> {
+  // Module-level dedup on top of api-cache dedup
+  if (_teamsPromise) return _teamsPromise
+  const { cached, TTL } = await import('@/lib/api-cache')
+  _teamsPromise = cached<NBATeamInfo[]>('nba-teams', TTL.DAY, async () => {
+    const apiKey = getApiKey()
+    const res = await fetch(`${BASE_URL_V1}/teams`, {
+      headers: { Authorization: apiKey },
+    })
+    if (!res.ok) throw new Error(`Teams API returned ${res.status}`)
+    const json = await res.json()
+    return json.data ?? json
+  })
+  _teamsPromise.finally(() => { _teamsPromise = null })
+  return _teamsPromise
+}
+
+/**
+ * Get a Map of team_id → { abbreviation, full_name } for quick lookups.
+ */
+export async function getTeamsMap(): Promise<Map<number, { abbreviation: string; full_name: string }>> {
+  const teams = await getTeamsList()
+  const map = new Map<number, { abbreviation: string; full_name: string }>()
+  for (const t of teams) map.set(t.id, { abbreviation: t.abbreviation, full_name: t.full_name })
+  return map
+}
+
 // ── Weekly snapshot collector (for Phase 1 Value Meal brief) ────────────────
 
 export interface PlayerSnapshot {
