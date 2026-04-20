@@ -154,6 +154,137 @@ async function getAllLeaders() {
   ];
 }
 
+// ── Post-season leaders (aggregated from /stats?postseason=true) ────────────
+
+interface PostseasonStatRow {
+  pts: number;
+  reb: number;
+  ast: number;
+  stl: number;
+  blk: number;
+  player: {
+    id: number;
+    first_name: string;
+    last_name: string;
+    team_id: number;
+  };
+}
+
+async function isPostseasonActive(): Promise<boolean> {
+  const api = getApi();
+  return cached(
+    `playoffs-active-${CURRENT_SEASON}`,
+    TTL.MEDIUM,
+    async () => {
+      const res = await api.nba.getGames({
+        seasons: [CURRENT_SEASON],
+        postseason: true,
+        per_page: 1,
+      });
+      return (res.data ?? []).length > 0;
+    },
+  );
+}
+
+async function fetchPostseasonStats(): Promise<PostseasonStatRow[]> {
+  return cached(
+    `postseason-stats-${CURRENT_SEASON}`,
+    TTL.MEDIUM,
+    async () => {
+      const apiKey = getApiKey();
+      const all: PostseasonStatRow[] = [];
+      let cursor: number | null = null;
+      for (let i = 0; i < 25; i++) {
+        const url = new URL(`${BASE_URL}/stats`);
+        url.searchParams.set("seasons[]", String(CURRENT_SEASON));
+        url.searchParams.set("postseason", "true");
+        url.searchParams.set("per_page", "100");
+        if (cursor != null) url.searchParams.set("cursor", String(cursor));
+        const res = await fetch(url.toString(), {
+          headers: { Authorization: apiKey },
+        });
+        if (!res.ok) throw new Error(`Stats API returned ${res.status}`);
+        const json = await res.json();
+        all.push(...((json.data ?? []) as PostseasonStatRow[]));
+        cursor = json.meta?.next_cursor ?? null;
+        if (cursor == null) break;
+      }
+      return all;
+    },
+  );
+}
+
+async function getPostseasonLeaders() {
+  const [teams, stats] = await Promise.all([
+    getTeamAbbrMap(),
+    fetchPostseasonStats(),
+  ]);
+
+  interface Agg {
+    name: string;
+    team: string;
+    games: number;
+    pts: number;
+    reb: number;
+    ast: number;
+    stl: number;
+    blk: number;
+  }
+
+  const agg = new Map<number, Agg>();
+  for (const s of stats) {
+    const existing = agg.get(s.player.id);
+    if (existing) {
+      existing.games += 1;
+      existing.pts += s.pts ?? 0;
+      existing.reb += s.reb ?? 0;
+      existing.ast += s.ast ?? 0;
+      existing.stl += s.stl ?? 0;
+      existing.blk += s.blk ?? 0;
+    } else {
+      agg.set(s.player.id, {
+        name: s.player.last_name,
+        team: teams.get(s.player.team_id) ?? "—",
+        games: 1,
+        pts: s.pts ?? 0,
+        reb: s.reb ?? 0,
+        ast: s.ast ?? 0,
+        stl: s.stl ?? 0,
+        blk: s.blk ?? 0,
+      });
+    }
+  }
+
+  const players = Array.from(agg.values()).filter((p) => p.games > 0);
+  const top5 = (pick: (p: Agg) => number) =>
+    players
+      .map((p) => ({
+        name: p.name,
+        team: p.team,
+        value: Math.round(pick(p) * 10) / 10,
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+
+  return [
+    { stat: "pts", label: "POSTSEASON PTS", players: top5((p) => p.pts / p.games) },
+    { stat: "reb", label: "POSTSEASON REB", players: top5((p) => p.reb / p.games) },
+    { stat: "ast", label: "POSTSEASON AST", players: top5((p) => p.ast / p.games) },
+    { stat: "blk", label: "POSTSEASON BLK", players: top5((p) => p.blk / p.games) },
+    { stat: "stl", label: "POSTSEASON STL", players: top5((p) => p.stl / p.games) },
+    {
+      stat: "pra",
+      label: "POSTSEASON PRA",
+      players: top5((p) => (p.pts + p.reb + p.ast) / p.games),
+    },
+    {
+      stat: "stocks",
+      label: "POSTSEASON STOCKS",
+      players: top5((p) => (p.stl + p.blk) / p.games),
+    },
+  ];
+}
+
 // ── Games (today + yesterday) ────────────────────────────────────────
 async function getGamesForDate(date: string) {
   const api = getApi();
@@ -206,9 +337,11 @@ async function getYesterdayGames() {
 // ── GET handler ──────────────────────────────────────────────────────
 export async function GET() {
   try {
+    const postseasonActive = await isPostseasonActive();
+
     const [standings, leaders, todayGames, yesterdayGames] = await Promise.all([
       getTopStandings(),
-      getAllLeaders(),
+      postseasonActive ? getPostseasonLeaders() : getAllLeaders(),
       getTodayGames(),
       getYesterdayGames(),
     ]);
@@ -218,6 +351,7 @@ export async function GET() {
       leaders,
       todayGames,
       yesterdayGames,
+      postseason: postseasonActive,
     });
   } catch (error) {
     console.error("Ticker error:", error);

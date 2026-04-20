@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 interface TickerData {
   standings: { conference: string; team: string; wins: number; losses: number }[]
   leaders: { stat: string; label: string; players: { name: string; team: string; value: number }[] }[]
+  postseason?: boolean
 }
 
 function buildTickerContent(data: TickerData): string[] {
@@ -15,6 +16,10 @@ function buildTickerContent(data: TickerData): string[] {
     if (teams.length === 0) continue
     const list = teams.map((t, i) => `${i + 1}. ${t.team} ${t.wins}-${t.losses}`).join('  ·  ')
     segments.push(`${conf.toUpperCase()}|||${list}`)
+  }
+
+  if (data.postseason && data.leaders.some(c => c.players.length > 0)) {
+    segments.push('PLAYOFFS|||Post-Season Stat Leaders')
   }
 
   for (const cat of data.leaders) {

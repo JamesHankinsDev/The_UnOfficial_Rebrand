@@ -11,6 +11,7 @@ import { features } from '@/lib/features'
 
 const allNavLinks = [
   { href: '/posts', label: 'Articles' },
+  { href: '/playoffs', label: 'Playoffs' },
   { href: '/trade-machine', label: 'Trade', gate: 'tradeMachine' as const },
   { href: '/trivia', label: 'Trivia' },
   { href: '/cards', label: 'Cards', gate: 'cards' as const },
