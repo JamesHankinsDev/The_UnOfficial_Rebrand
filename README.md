@@ -136,7 +136,7 @@ app/
 components/
   ui/           Button, Input, Textarea, Badge, Modal, Select, Toggle
   layout/       Navbar, Footer
-  articles/     ArticleCard, FeaturedBanner, SeriesBadge
+  articles/     ArticleCard, FeaturedHero, RecentList, SeriesBadge
   social/       ShareButton, TweetButton, TweetPreview, AudioPlayer,
                 EmailSubscribe, ShareBar, ReadTimeDisplay
   editor/       RichTextEditor (Tiptap), AudioRecorder, ImageUploader,
