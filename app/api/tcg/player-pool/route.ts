@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { getApiKey, getTeamsList, CURRENT_SEASON } from "@/lib/balldontlie";
 import { cached, TTL } from "@/lib/api-cache";
 import { buildPlayerPool, type PoolPlayer } from "@/lib/tcg";
-import { getNbaPersonIdMap } from "@/lib/nba-persons";
+import {
+  getNbaPersonIdMap,
+  normalizePlayerName,
+  resolvePreferredName,
+  splitFullName,
+} from "@/lib/nba-persons";
 import { getAlivePlayoffTeamIds } from "@/lib/playoff-teams";
 
 const BASE_URL = "https://api.balldontlie.io/v1";
@@ -95,12 +100,17 @@ export async function getPlayerPool(season = CURRENT_SEASON): Promise<PoolPlayer
     );
     const players = entries.map((p) => {
       const team = teams.get(p.player.team_id);
-      const fullName = `${p.player.first_name} ${p.player.last_name}`.toLowerCase();
+      const rawFull = `${p.player.first_name} ${p.player.last_name}`;
+      const lookupKey = normalizePlayerName(rawFull);
+      // Prefer the "goes-by" name for display (e.g. Ace, Bub) while still
+      // letting the alias map resolve the photo via either variant.
+      const displayFull = resolvePreferredName(rawFull);
+      const { firstName, lastName } = splitFullName(displayFull);
       return {
         player_id: p.player.id,
-        nba_id: nbaPersonIds.get(fullName),
-        first_name: p.player.first_name,
-        last_name: p.player.last_name,
+        nba_id: nbaPersonIds.get(lookupKey),
+        first_name: firstName,
+        last_name: lastName,
         position: p.player.position,
         team_abbreviation: team?.abbreviation ?? "—",
         season,

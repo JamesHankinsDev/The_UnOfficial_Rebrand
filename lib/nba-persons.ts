@@ -1,5 +1,6 @@
 import { cached, TTL } from '@/lib/api-cache'
 import { CURRENT_SEASON, getApi } from '@/lib/balldontlie'
+import { NBA_NAME_ALIASES } from '@/lib/nba-name-aliases'
 
 const NBA_STATS_HEADERS = {
   'User-Agent': 'Mozilla/5.0',
@@ -7,6 +8,47 @@ const NBA_STATS_HEADERS = {
   Accept: 'application/json',
   Origin: 'https://www.nba.com',
 } as const
+
+/**
+ * Lower-cases and strips diacritics so lookups match across feeds. NBA Stats
+ * returns "Nikola Jokić" while BallDontLie returns "Nikola Jokic"; normalizing
+ * both through NFD + combining-mark removal makes them collide.
+ */
+export function normalizePlayerName(name: string): string {
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
+/**
+ * If the given name matches either side of an alias pair, returns the preferred
+ * display variant (first element of the tuple). Otherwise returns the input
+ * unchanged. Match is case + diacritic insensitive.
+ */
+export function resolvePreferredName(fullName: string): string {
+  const key = normalizePlayerName(fullName)
+  for (const [preferred, alt] of NBA_NAME_ALIASES) {
+    if (normalizePlayerName(preferred) === key) return preferred
+    if (normalizePlayerName(alt) === key) return preferred
+  }
+  return fullName
+}
+
+/** Split a full name into `{ firstName, lastName }` on the first whitespace. */
+export function splitFullName(fullName: string): {
+  firstName: string
+  lastName: string
+} {
+  const trimmed = fullName.trim()
+  const idx = trimmed.indexOf(' ')
+  if (idx === -1) return { firstName: trimmed, lastName: '' }
+  return {
+    firstName: trimmed.slice(0, idx),
+    lastName: trimmed.slice(idx + 1),
+  }
+}
 
 /** Fetches a name→personId map from the NBA Stats API. Cached for one day. */
 export async function getNbaPersonIdMap(): Promise<Map<string, number>> {
@@ -32,7 +74,21 @@ export async function getNbaPersonIdMap(): Promise<Map<string, number>> {
   )
 
   const map = new Map<string, number>()
-  for (const { id, name } of rows) map.set(name.toLowerCase(), id)
+  for (const { id, name } of rows) map.set(normalizePlayerName(name), id)
+
+  // Register cross-feed aliases. For each pair, if either variant is already
+  // in the map, copy the id to the other variant too — so lookups succeed
+  // regardless of which feed fed us the name.
+  for (const [a, b] of NBA_NAME_ALIASES) {
+    const na = normalizePlayerName(a)
+    const nb = normalizePlayerName(b)
+    const existing = map.get(na) ?? map.get(nb)
+    if (existing != null) {
+      map.set(na, existing)
+      map.set(nb, existing)
+    }
+  }
+
   return map
 }
 
@@ -43,7 +99,7 @@ export async function resolveNbaPersonId(
 ): Promise<number | null> {
   const map = await getNbaPersonIdMap().catch(() => null)
   if (!map) return null
-  return map.get(`${firstName} ${lastName}`.toLowerCase()) ?? null
+  return map.get(normalizePlayerName(`${firstName} ${lastName}`)) ?? null
 }
 
 export interface NbaPlayerBio {
@@ -171,7 +227,7 @@ async function buildActivePlayerIndex(): Promise<ActivePlayerRow[]> {
   const nbaMap = await getNbaPersonIdMap().catch(() => null)
   if (nbaMap) {
     for (const r of rows) {
-      r.nba_id = nbaMap.get(r.name.toLowerCase()) ?? null
+      r.nba_id = nbaMap.get(normalizePlayerName(r.name)) ?? null
     }
   }
 

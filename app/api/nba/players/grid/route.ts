@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getApiKey, CURRENT_SEASON, SALARY_CAP_USD, getTeamsMap } from '@/lib/balldontlie'
 import { cached, cacheHeaders, TTL } from '@/lib/api-cache'
-import { getNbaPersonIdMap } from '@/lib/nba-persons'
+import { getNbaPersonIdMap, normalizePlayerName } from '@/lib/nba-persons'
 
 const BASE_URL = 'https://api.balldontlie.io/v1'
 const BASE_URL_NBA = 'https://api.balldontlie.io/nba/v1'
@@ -127,7 +127,7 @@ async function enrichWithNbaIds(list: GridPlayer[]): Promise<void> {
   const map = await getNbaPersonIdMap().catch(() => null)
   if (!map) return
   for (const p of list) {
-    const key = `${p.first_name} ${p.last_name}`.toLowerCase()
+    const key = normalizePlayerName(`${p.first_name} ${p.last_name}`)
     p.nba_id = map.get(key) ?? null
   }
 }
