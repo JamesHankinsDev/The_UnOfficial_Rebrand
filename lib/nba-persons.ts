@@ -1,6 +1,7 @@
 import { cached, TTL } from '@/lib/api-cache'
 import { CURRENT_SEASON, getApi } from '@/lib/balldontlie'
 import { NBA_NAME_ALIASES } from '@/lib/nba-name-aliases'
+import seedPersonIds from '@/lib/data/nba-person-ids.json'
 
 const NBA_STATS_HEADERS = {
   'User-Agent': 'Mozilla/5.0',
@@ -50,34 +51,73 @@ export function splitFullName(fullName: string): {
   }
 }
 
-/** Fetches a name→personId map from the NBA Stats API. Cached for one day. */
-export async function getNbaPersonIdMap(): Promise<Map<string, number>> {
-  const rows = await cached<{ id: number; name: string }[]>(
+/**
+ * Fetches live NBA Stats rows, cached for one day. Throws on any upstream
+ * failure so callers can decide whether to fall back.
+ */
+async function fetchLivePersonRows(): Promise<{ id: number; name: string }[]> {
+  return cached<{ id: number; name: string }[]>(
     'nba-person-ids',
     TTL.DAY,
     async () => {
       const seasonStr = `${CURRENT_SEASON}-${String(CURRENT_SEASON + 1).slice(-2)}`
       const res = await fetch(
         `https://stats.nba.com/stats/commonallplayers?LeagueID=00&Season=${seasonStr}&IsOnlyCurrentSeason=1`,
-        { headers: NBA_STATS_HEADERS },
+        {
+          headers: NBA_STATS_HEADERS,
+          signal: AbortSignal.timeout(8000),
+        },
       )
       if (!res.ok) throw new Error(`NBA Stats API returned ${res.status}`)
       const json = await res.json()
       const rs = json.resultSets?.[0]
+      if (!rs?.headers || !Array.isArray(rs.rowSet)) {
+        throw new Error('Unexpected NBA Stats response shape')
+      }
       const personIdx: number = rs.headers.indexOf('PERSON_ID')
       const nameIdx: number = rs.headers.indexOf('DISPLAY_FIRST_LAST')
+      if (personIdx === -1 || nameIdx === -1) {
+        throw new Error('Expected columns missing from NBA Stats response')
+      }
       return (rs.rowSet as unknown[][]).map((row) => ({
         id: row[personIdx] as number,
         name: row[nameIdx] as string,
       }))
     },
   )
+}
 
+/**
+ * Returns a name→personId map, merging a checked-in seed (for reliability
+ * when stats.nba.com is unreachable from Vercel) with a best-effort live
+ * refresh. Live entries take priority so rookies/trades pick up as soon as
+ * NBA Stats is reachable.
+ *
+ * Refresh the seed by running `node scripts/snapshot-nba-persons.mjs`.
+ */
+export async function getNbaPersonIdMap(): Promise<Map<string, number>> {
   const map = new Map<string, number>()
-  for (const { id, name } of rows) map.set(normalizePlayerName(name), id)
 
-  // Register cross-feed aliases. For each pair, if either variant is already
-  // in the map, copy the id to the other variant too — so lookups succeed
+  // 1. Start from the checked-in seed — guaranteed baseline.
+  for (const [name, id] of Object.entries(seedPersonIds as Record<string, number>)) {
+    map.set(name, id)
+  }
+
+  // 2. Best-effort live refresh. On failure, log and continue with seed only.
+  try {
+    const rows = await fetchLivePersonRows()
+    for (const { id, name } of rows) {
+      map.set(normalizePlayerName(name), id)
+    }
+  } catch (err) {
+    console.warn(
+      '[nba-persons] Live fetch failed; using seed only.',
+      err instanceof Error ? err.message : err,
+    )
+  }
+
+  // 3. Register cross-feed aliases. For each pair, if either variant is in
+  // the map, copy the id to the other variant too — so lookups succeed
   // regardless of which feed fed us the name.
   for (const [a, b] of NBA_NAME_ALIASES) {
     const na = normalizePlayerName(a)

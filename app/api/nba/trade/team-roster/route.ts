@@ -215,7 +215,7 @@ export async function GET(request: Request) {
     }
 
     const data = await cached<TeamRosterResponse>(
-      `trade-roster-v4-${teamId}-${CURRENT_SEASON}`,
+      `trade-roster-v5-${teamId}-${CURRENT_SEASON}`,
       TTL.LONG,
       async () => {
         const apiKey = getApiKey()
@@ -227,7 +227,7 @@ export async function GET(request: Request) {
           cached(`standings-${CURRENT_SEASON}`, TTL.MEDIUM, () =>
             api.nba.getStandings({ season: CURRENT_SEASON }),
           ),
-          cached(`team-all-players-${teamId}`, TTL.DAY, () =>
+          cached(`team-all-players-${teamId}`, TTL.MEDIUM, () =>
             fetchAllTeamPlayerIds(teamId, apiKey),
           ),
         ])
@@ -249,7 +249,7 @@ export async function GET(request: Request) {
         // This is the expensive step — cache the result for 24h
         const activePlayers = await cached(
           `team-active-roster-${teamId}-${CURRENT_SEASON}`,
-          TTL.DAY,
+          TTL.MEDIUM,
           () => filterToActivePlayers(allPlayers, CURRENT_SEASON, apiKey)
             .then(m => Array.from(m.entries()).map(([id, stats]) => ({ id, ...stats }))),
         )
