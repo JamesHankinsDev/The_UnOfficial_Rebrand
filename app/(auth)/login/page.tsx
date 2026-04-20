@@ -18,8 +18,12 @@ export default function LoginPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (!loading && user && (role === 'writer' || role === 'admin' || role === 'owner')) {
+    if (loading || !user) return
+    if (role === 'writer' || role === 'admin' || role === 'owner') {
       router.push('/dashboard')
+    } else if (role) {
+      // Members land here by mistake — send them to the public site.
+      router.push('/')
     }
   }, [user, role, loading, router])
 
@@ -29,7 +33,6 @@ export default function LoginPage() {
     try {
       await loginWithGoogle()
       toast.success('Welcome back.')
-      router.push('/dashboard')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Google sign-in failed.')
     } finally {
@@ -44,7 +47,6 @@ export default function LoginPage() {
     try {
       await login(email, password)
       toast.success('Welcome back.')
-      router.push('/dashboard')
     } catch {
       setError('Invalid email or password. Try again.')
     } finally {

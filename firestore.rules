@@ -106,6 +106,30 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
     }
 
+    // /lineups/{uid} — starting-five selection from the user's collection
+    // - Users can read/write their own lineup only
+    match /lineups/{uid} {
+      allow read, write: if request.auth.uid == uid;
+    }
+
+    // /lineupScores/{weekId_uid} — frozen weekly lineup + score
+    // - Readable by any signed-in user (powers leaderboards)
+    // - All writes go through the Admin SDK via cron / server routes
+    match /lineupScores/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // /leagues/{leagueId} — private competition groups
+    // - Only members can read the doc (keeps invite codes + rosters private)
+    // - All writes (create/join/leave/owner transfer) go through Admin SDK
+    //   routes at /api/tcg/leagues/* so we can enforce invite-code checks,
+    //   member caps, and ownership transitions centrally.
+    match /leagues/{leagueId} {
+      allow read: if isSignedIn() && request.auth.uid in resource.data.memberUids;
+      allow write: if false;
+    }
+
     // /comments/{commentId} — article comments
     // - Public reads (anyone can see comments)
     // - No client-side creates (all writes go through API route + Admin SDK)

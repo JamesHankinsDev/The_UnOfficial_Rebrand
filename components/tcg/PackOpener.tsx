@@ -51,6 +51,8 @@ export function PackOpener({ onPackOpened, onBucksChange }: PackOpenerProps) {
           position: c.position,
           season: c.season,
           rarity: c.rarity,
+          archetype: c.archetype,
+          foil: c.foil,
           stats: c.stats,
           ownerId: user.uid,
         })),
@@ -104,9 +106,12 @@ export function PackOpener({ onPackOpened, onBucksChange }: PackOpenerProps) {
               teamAbbreviation={card.teamAbbreviation}
               position={card.position}
               rarity={card.rarity}
+              archetype={card.archetype}
+              foil={card.foil}
               stats={card.stats}
               nbaId={card.nbaId}
               season={card.season}
+              cardNumberSeed={card.playerId}
               faceDown
               onFlip={handleCardFlip}
             />

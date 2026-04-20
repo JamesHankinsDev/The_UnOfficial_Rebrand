@@ -118,6 +118,12 @@ body {
   100% { transform: translateX(-50%); }
 }
 
+/* TCG foil sheen */
+@keyframes foil-sheen {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 200% 200%; }
+}
+
 .ticker-track {
   animation: ticker-scroll 80s linear infinite;
 }

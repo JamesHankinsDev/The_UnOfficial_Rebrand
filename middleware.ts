@@ -17,10 +17,9 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // Redirect authenticated users away from login
-  if (pathname === "/login" && hasSession) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
+  // Note: the /login → /dashboard redirect lives in the login page itself
+  // because only a role check (writer/admin/owner vs member) can route correctly,
+  // and middleware only sees the opaque __session cookie.
 
   return NextResponse.next();
 }

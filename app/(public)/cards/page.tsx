@@ -3,14 +3,19 @@
 import React, { useState, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import { AuthGate } from "@/components/auth/AuthGate";
 import { WalletDisplay } from "@/components/tcg/WalletDisplay";
 import { PackOpener } from "@/components/tcg/PackOpener";
 import { CardGrid } from "@/components/tcg/CardGrid";
+import { LineupBoard } from "@/components/tcg/LineupBoard";
+import { Leaderboard } from "@/components/tcg/Leaderboard";
 import { PACK_COST } from "@/lib/firestore";
+
+type CardsTab = "collection" | "lineup" | "leaderboard" | "packs";
 
 export default function CardsPage() {
   const { user, loading: authLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<"collection" | "packs">("collection");
+  const [activeTab, setActiveTab] = useState<CardsTab>("collection");
   const [refreshKey, setRefreshKey] = useState(0);
   const [bucks, setBucks] = useState<number | undefined>(undefined);
 
@@ -50,62 +55,48 @@ export default function CardsPage() {
         {user && <WalletDisplay bucksOverride={bucks} />}
       </div>
 
-      {!user ? (
-        <div className="text-center py-20 bg-[#111118] border border-[#1e1e2a] rounded-2xl">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#fbbf24]/10 flex items-center justify-center">
-            <span className="text-2xl">🃏</span>
-          </div>
-          <h2 className="font-mono font-bold text-xl text-[#e8e6e3] mb-2">
-            Sign In to Collect
-          </h2>
-          <p className="text-sm text-[#5a5a64] mb-6 max-w-md mx-auto">
-            Earn UnOfficial Bucks by playing trivia, then open packs to collect
-            NBA player cards with real stats and rarity tiers.
-          </p>
-          <Link
-            href="/login"
-            className="px-6 py-2.5 bg-[#fbbf24] text-[#0a0a0f] font-mono font-bold text-sm rounded-lg hover:bg-[#f59e0b] transition-colors"
-          >
-            Sign In
-          </Link>
+      <AuthGate
+        featureName="collection"
+        icon="🃏"
+        reason="Your card collection and UnOfficial Bucks balance are tied to a free account, so your packs and pulls stick around."
+      >
+        {/* Tabs */}
+        <div className="flex items-center gap-1 mb-8 border-b border-[#1e1e2a] overflow-x-auto">
+          {(
+            [
+              { key: "collection", label: "My Collection" },
+              { key: "lineup", label: "Lineup" },
+              { key: "leaderboard", label: "Leaderboard" },
+              { key: "packs", label: "Open Packs" },
+            ] satisfies { key: CardsTab; label: string }[]
+          ).map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              className={`flex-shrink-0 px-4 py-2.5 font-mono text-xs tracking-widest uppercase transition-colors border-b-2 -mb-px ${
+                activeTab === t.key
+                  ? "border-[#fbbf24] text-[#fbbf24]"
+                  : "border-transparent text-[#5a5a64] hover:text-[#8a8a94]"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
-      ) : (
-        <>
-          {/* Tabs */}
-          <div className="flex items-center gap-1 mb-8 border-b border-[#1e1e2a]">
-            <button
-              onClick={() => setActiveTab("collection")}
-              className={`px-4 py-2.5 font-mono text-xs tracking-widest uppercase transition-colors border-b-2 -mb-px ${
-                activeTab === "collection"
-                  ? "border-[#fbbf24] text-[#fbbf24]"
-                  : "border-transparent text-[#5a5a64] hover:text-[#8a8a94]"
-              }`}
-            >
-              My Collection
-            </button>
-            <button
-              onClick={() => setActiveTab("packs")}
-              className={`px-4 py-2.5 font-mono text-xs tracking-widest uppercase transition-colors border-b-2 -mb-px ${
-                activeTab === "packs"
-                  ? "border-[#fbbf24] text-[#fbbf24]"
-                  : "border-transparent text-[#5a5a64] hover:text-[#8a8a94]"
-              }`}
-            >
-              Open Packs
-            </button>
-          </div>
 
-          {/* Tab content */}
-          {activeTab === "collection" ? (
-            <CardGrid refreshKey={refreshKey} onBucksChange={handleBucksChange} />
-          ) : (
-            <PackOpener
-              onPackOpened={handlePackOpened}
-              onBucksChange={handleBucksChange}
-            />
-          )}
-        </>
-      )}
+        {/* Tab content */}
+        {activeTab === "collection" && (
+          <CardGrid refreshKey={refreshKey} onBucksChange={handleBucksChange} />
+        )}
+        {activeTab === "lineup" && <LineupBoard refreshKey={refreshKey} />}
+        {activeTab === "leaderboard" && <Leaderboard />}
+        {activeTab === "packs" && (
+          <PackOpener
+            onPackOpened={handlePackOpened}
+            onBucksChange={handleBucksChange}
+          />
+        )}
+      </AuthGate>
     </div>
   );
 }

@@ -1,4 +1,40 @@
-import type { CardRarity } from "./firestore";
+import type { Archetype, CardRarity } from "./firestore";
+
+// --- Archetypes ---
+
+export type { Archetype } from "./firestore";
+
+export const ARCHETYPE_LABELS: Record<Archetype, string> = {
+  scorer: "Scorer",
+  playmaker: "Playmaker",
+  rebounder: "Rebounder",
+  "two-way": "Two-Way",
+  "rim-protector": "Rim Protector",
+};
+
+interface StatLine {
+  pts: number;
+  reb: number;
+  ast: number;
+  stl: number;
+  blk: number;
+}
+
+export function deriveArchetype(s: StatLine): Archetype {
+  if (s.blk >= 1.5 && s.reb >= 7.5 && s.ast < 4) return "rim-protector";
+  if (s.reb >= 8 && s.reb > s.ast && s.reb > s.pts * 0.5) return "rebounder";
+  if (s.ast >= 7 || (s.ast >= 5 && s.ast >= 1.5 * s.reb)) return "playmaker";
+  if (s.stl + s.blk >= 2.5 && s.pts < 25 && s.pts >= 10) return "two-way";
+  return "scorer";
+}
+
+// --- Foil ---
+
+/** Per-card foil roll odds. */
+export const FOIL_ODDS = 0.08;
+
+/** Multiplier applied to a card's base sell value when it's foil. */
+export const FOIL_SELL_MULTIPLIER = 2;
 
 // --- Rarity Tiers ---
 
@@ -67,6 +103,7 @@ export interface PoolPlayer {
   compositeScore: number;
   percentile: number;
   rarity: CardRarity;
+  archetype: Archetype;
 }
 
 /**
@@ -117,6 +154,13 @@ export function buildPlayerPool(
       compositeScore: pra + stocks * 2,
       percentile: 0,
       rarity: "common" as CardRarity,
+      archetype: deriveArchetype({
+        pts: p.pts,
+        reb: p.reb,
+        ast: p.ast,
+        stl: p.stl,
+        blk: p.blk,
+      }),
     };
   });
 
@@ -142,6 +186,8 @@ export interface GeneratedCard {
   position: string;
   season: number;
   rarity: CardRarity;
+  archetype: Archetype;
+  foil: boolean;
   stats: PoolPlayer["stats"];
 }
 
@@ -195,6 +241,8 @@ export function generatePack(pool: PoolPlayer[], count = 7): GeneratedCard[] {
       position: pick.position,
       season: pick.season,
       rarity,
+      archetype: pick.archetype,
+      foil: Math.random() < FOIL_ODDS,
       stats: pick.stats,
     });
   }

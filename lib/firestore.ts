@@ -21,7 +21,7 @@ import { db } from "./firebase";
 import { slugify, calcReadTime, generateExcerpt } from "./utils";
 import { v4 as uuidv4 } from "uuid";
 
-export type UserRole = "writer" | "admin" | "owner" | "revoked";
+export type UserRole = "writer" | "admin" | "owner" | "member" | "revoked";
 
 export interface UserDoc {
   uid: string;
@@ -448,6 +448,13 @@ export interface WalletDoc {
   updatedAt: Timestamp;
 }
 
+export type Archetype =
+  | "scorer"
+  | "playmaker"
+  | "rebounder"
+  | "two-way"
+  | "rim-protector";
+
 export interface CardDoc {
   id: string;
   ownerId: string;
@@ -458,6 +465,8 @@ export interface CardDoc {
   position: string;
   season: number;
   rarity: CardRarity;
+  archetype?: Archetype;
+  foil?: boolean;
   stats: {
     pts: number;
     reb: number;
@@ -633,6 +642,173 @@ export async function sellCard(
       });
     }
   });
+}
+
+// --- TCG: Lineups ---
+
+export const LINEUP_SIZE = 5;
+
+export interface PerPlayerScore {
+  playerId: number;
+  playerName: string;
+  teamAbbreviation: string;
+  position: string;
+  gamesPlayed: number;
+  totalPra: number;
+  totalStocks: number;
+  /** (totalPra + totalStocks) / gamesPlayed, rounded to 1dp. 0 if no games. */
+  perGameAvg: number;
+}
+
+export interface LineupScoreDoc {
+  /** `${weekId}_${uid}`. Week boundary is the LA Monday; see lib/tcg-week.ts. */
+  id: string;
+  weekId: string;
+  uid: string;
+  displayName: string;
+  /** Frozen lineup, length LINEUP_SIZE. nulls for unfilled slots. */
+  playerIds: (number | null)[];
+  perPlayer: PerPlayerScore[];
+  total: number;
+  lockedAt: Timestamp;
+  computedAt: Timestamp;
+  /** True after the week closes and a final recompute has run. */
+  final: boolean;
+}
+
+export interface LineupDoc {
+  /**
+   * Fixed-length 5-slot array of playerIds, with `null` for empty slots.
+   * Tracking playerId (not cardId) means the lineup represents "who you're
+   * rostering", so selling one copy of a stack doesn't invalidate the slot.
+   */
+  playerIds: (number | null)[];
+  updatedAt: Timestamp;
+}
+
+function emptyLineup(): LineupDoc {
+  return {
+    playerIds: Array(LINEUP_SIZE).fill(null),
+    updatedAt: Timestamp.now(),
+  };
+}
+
+export async function getLineup(uid: string): Promise<LineupDoc> {
+  const snap = await getDoc(doc(db, "lineups", uid));
+  if (!snap.exists()) return emptyLineup();
+  const data = snap.data() as Partial<LineupDoc>;
+  const slots = Array.isArray(data.playerIds) ? data.playerIds.slice(0, LINEUP_SIZE) : [];
+  while (slots.length < LINEUP_SIZE) slots.push(null);
+  return {
+    playerIds: slots,
+    updatedAt: data.updatedAt ?? Timestamp.now(),
+  };
+}
+
+export async function saveLineup(
+  uid: string,
+  playerIds: (number | null)[],
+): Promise<void> {
+  const padded = playerIds.slice(0, LINEUP_SIZE);
+  while (padded.length < LINEUP_SIZE) padded.push(null);
+  await setDoc(doc(db, "lineups", uid), {
+    playerIds: padded,
+    updatedAt: Timestamp.now(),
+  });
+}
+
+export async function getLineupScore(
+  weekId: string,
+  uid: string,
+): Promise<LineupScoreDoc | null> {
+  const snap = await getDoc(doc(db, "lineupScores", `${weekId}_${uid}`));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as LineupScoreDoc;
+}
+
+export async function getTopWeeklyScores(
+  weekId: string,
+  lim = 20,
+): Promise<LineupScoreDoc[]> {
+  const q = query(
+    collection(db, "lineupScores"),
+    where("weekId", "==", weekId),
+    orderBy("total", "desc"),
+    limit(lim),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as LineupScoreDoc);
+}
+
+/**
+ * All-time best recorded weekly scores. Restricted to `final: true` docs so
+ * in-progress live-recomputed scores can't briefly dominate the board.
+ */
+export async function getAllTimeTopScores(lim = 20): Promise<LineupScoreDoc[]> {
+  const q = query(
+    collection(db, "lineupScores"),
+    where("final", "==", true),
+    orderBy("total", "desc"),
+    limit(lim),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as LineupScoreDoc);
+}
+
+// --- TCG: Leagues ---
+
+export interface LeagueDoc {
+  id: string;
+  name: string;
+  ownerUid: string;
+  memberUids: string[];
+  /** 8-char human-readable code used to invite new members. */
+  inviteCode: string;
+  /** Denormalized for quick list rendering. Equals memberUids.length. */
+  memberCount: number;
+  createdAt: Timestamp;
+}
+
+export async function getLeague(leagueId: string): Promise<LeagueDoc | null> {
+  const snap = await getDoc(doc(db, "leagues", leagueId));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as LeagueDoc;
+}
+
+export async function getUserLeagues(uid: string): Promise<LeagueDoc[]> {
+  const q = query(
+    collection(db, "leagues"),
+    where("memberUids", "array-contains", uid),
+    orderBy("createdAt", "desc"),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as LeagueDoc);
+}
+
+/**
+ * Leaderboard for a league: scores filtered to the given member UIDs for a
+ * specific week. Firestore caps `in` at 30 items, so this assumes leagues
+ * are ≤30 members (we don't expose a way to exceed that).
+ *
+ * We pull without orderBy and sort client-side because combining `in` with
+ * a different-field orderBy gets awkward.
+ */
+export async function getLeagueWeeklyScores(
+  weekId: string,
+  memberUids: string[],
+): Promise<LineupScoreDoc[]> {
+  if (memberUids.length === 0) return [];
+  const q = query(
+    collection(db, "lineupScores"),
+    where("weekId", "==", weekId),
+    where("uid", "in", memberUids.slice(0, 30)),
+  );
+  const snap = await getDocs(q);
+  const rows = snap.docs.map(
+    (d) => ({ id: d.id, ...d.data() }) as LineupScoreDoc,
+  );
+  rows.sort((a, b) => b.total - a.total);
+  return rows;
 }
 
 /** Deletes all cards owned by the user. Firestore batches max 500 ops. */

@@ -3,6 +3,7 @@ import { getApiKey, getTeamsList, CURRENT_SEASON } from "@/lib/balldontlie";
 import { cached, TTL } from "@/lib/api-cache";
 import { buildPlayerPool, type PoolPlayer } from "@/lib/tcg";
 import { getNbaPersonIdMap } from "@/lib/nba-persons";
+import { getAlivePlayoffTeamIds } from "@/lib/playoff-teams";
 
 const BASE_URL = "https://api.balldontlie.io/v1";
 const CORE_STATS = ["pts", "reb", "ast", "blk", "stl"] as const;
@@ -48,11 +49,13 @@ async function fetchLeaders(stat: string, season: number): Promise<RawLeader[]> 
  * Cached for 1 day since season averages don't change rapidly.
  */
 export async function getPlayerPool(season = CURRENT_SEASON): Promise<PoolPlayer[]> {
-  return cached(`tcg-player-pool-${season}`, TTL.DAY, async () => {
-    // Fetch all core stat leaders + NBA person IDs in parallel
-    const [results, nbaPersonIds] = await Promise.all([
+  // Refreshes hourly so it picks up playoff eliminations without needing a deploy.
+  return cached(`tcg-player-pool-${season}`, TTL.SHORT, async () => {
+    // Fetch all core stat leaders + NBA person IDs + live playoff team set in parallel.
+    const [results, nbaPersonIds, aliveTeamIds] = await Promise.all([
       Promise.all(CORE_STATS.map((stat) => fetchLeaders(stat, season))),
       getNbaPersonIdMap().catch(() => new Map<string, number>()),
+      getAlivePlayoffTeamIds(season).catch(() => null),
     ]);
 
     const teams = await getTeamsFullMap();
@@ -84,8 +87,13 @@ export async function getPlayerPool(season = CURRENT_SEASON): Promise<PoolPlayer
       }
     }
 
-    // Convert to buildPlayerPool input format
-    const players = Array.from(playerMap.values()).map((p) => {
+    // Convert to buildPlayerPool input format.
+    // When playoff data is available, restrict to teams still alive so the set
+    // reads like a "postseason" drop. Fall back to all teams otherwise.
+    const entries = Array.from(playerMap.values()).filter((p) =>
+      aliveTeamIds ? aliveTeamIds.has(p.player.team_id) : true,
+    );
+    const players = entries.map((p) => {
       const team = teams.get(p.player.team_id);
       const fullName = `${p.player.first_name} ${p.player.last_name}`.toLowerCase();
       return {

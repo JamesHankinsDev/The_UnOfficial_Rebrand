@@ -20,12 +20,43 @@ export async function login(email: string, password: string): Promise<User> {
 
 export async function loginWithGoogle(): Promise<User> {
   const cred = await signInWithPopup(auth, googleProvider)
-  const userDoc = await getUser(cred.user.uid)
-  if (!userDoc || (userDoc.role !== 'writer' && userDoc.role !== 'admin' && userDoc.role !== 'owner')) {
+  const existing = await getUser(cred.user.uid)
+
+  if (existing?.role === 'revoked') {
     await signOut(auth)
-    throw new Error('No writer account found for this Google account. Request an invite.')
+    throw new Error('This account has been revoked.')
   }
+
+  // First-time Google sign-in: auto-provision a free member account.
+  if (!existing) {
+    await createUser(cred.user.uid, {
+      email: cred.user.email ?? '',
+      displayName: cred.user.displayName ?? cred.user.email ?? 'Member',
+      role: 'member',
+      createdAt: Timestamp.now(),
+    })
+  }
+
   return cred.user
+}
+
+export async function registerMember(
+  email: string,
+  password: string,
+  displayName: string
+): Promise<UserDoc> {
+  const cred = await createUserWithEmailAndPassword(auth, email, password)
+  const uid = cred.user.uid
+
+  const userDocData: Omit<UserDoc, 'uid'> = {
+    email,
+    displayName: displayName || email.split('@')[0],
+    role: 'member',
+    createdAt: Timestamp.now(),
+  }
+
+  await createUser(uid, userDocData)
+  return { uid, ...userDocData }
 }
 
 export async function logout(): Promise<void> {
