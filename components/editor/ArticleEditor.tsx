@@ -160,16 +160,16 @@ export function ArticleEditor({ editId }: ArticleEditorProps) {
   }
 
   return (
-    <div className="flex gap-0 min-h-screen">
+    <div className="flex flex-col lg:flex-row gap-0 lg:min-h-screen">
       {/* Main editor area */}
-      <div className="flex-1 p-8 max-w-4xl">
+      <div className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 lg:max-w-4xl">
         <div className="mb-6">
           <input
             type="text"
             value={title}
             onChange={e => setTitle(e.target.value)}
             placeholder="Article Title"
-            className="w-full bg-transparent font-mono font-bold text-3xl text-[#e8e6e3] placeholder:text-[#3a3a44] focus:outline-none border-b border-[#1e1e2a] pb-3 mb-2"
+            className="w-full bg-transparent font-mono font-bold text-2xl sm:text-3xl text-[#e8e6e3] placeholder:text-[#3a3a44] focus:outline-none border-b border-[#1e1e2a] pb-3 mb-2"
           />
           <div className="text-xs font-mono text-[#3a3a44]">
             /posts/<span className="text-[#5a5a64]">{slugPreview}</span>
@@ -219,8 +219,8 @@ export function ArticleEditor({ editId }: ArticleEditorProps) {
         )}
       </div>
 
-      {/* Sidebar */}
-      <aside className="w-72 flex-shrink-0 border-l border-[#1e1e2a] p-5 flex flex-col gap-5 overflow-y-auto sticky top-0 h-screen">
+      {/* Sidebar: below editor on mobile, sticky right-rail on desktop */}
+      <aside className="w-full lg:w-72 flex-shrink-0 border-t lg:border-t-0 lg:border-l border-[#1e1e2a] p-4 sm:p-5 flex flex-col gap-5 lg:overflow-y-auto lg:sticky lg:top-0 lg:h-screen">
         {/* Publish actions */}
         <div className="flex flex-col gap-2">
           {status === 'published' ? (
@@ -385,7 +385,46 @@ export function ArticleEditor({ editId }: ArticleEditorProps) {
             <span className="text-[#8a8a94]">{readTime} min</span>
           </div>
         </div>
+
+        {/* Spacer so the mobile sticky bar doesn't obscure sidebar bottom */}
+        <div className="h-16 lg:hidden" />
       </aside>
+
+      {/* Mobile-only sticky action bar */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#0a0a0f]/95 backdrop-blur border-t border-[#1e1e2a] px-3 py-2.5 flex items-center gap-2">
+        {status === 'published' ? (
+          <Button
+            onClick={() => handleSave('published')}
+            variant="primary"
+            size="sm"
+            loading={saving}
+            className="flex-1"
+          >
+            Update
+          </Button>
+        ) : (
+          <>
+            <Button
+              onClick={() => handleSave('draft')}
+              variant="ghost"
+              size="sm"
+              loading={saving}
+              className="flex-1"
+            >
+              Save Draft
+            </Button>
+            <Button
+              onClick={() => handleSave('published')}
+              variant="primary"
+              size="sm"
+              loading={saving}
+              className="flex-1"
+            >
+              Publish
+            </Button>
+          </>
+        )}
+      </div>
     </div>
   )
 }
