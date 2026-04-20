@@ -42,9 +42,11 @@ async function fetchAdvancedAverages(
   playerId: number,
   season: number,
   apiKey: string,
+  postseason = false,
 ): Promise<AdvancedSeasonAverages | null> {
+  const postseasonParam = postseason ? '&postseason=true' : ''
   const res = await fetch(
-    `${BASE_URL}/stats/advanced?player_ids[]=${playerId}&seasons[]=${season}&per_page=100`,
+    `${BASE_URL}/stats/advanced?player_ids[]=${playerId}&seasons[]=${season}&per_page=100${postseasonParam}`,
     { headers: { Authorization: apiKey } },
   )
   if (!res.ok) return null
@@ -100,11 +102,14 @@ export async function GET(
 
     const { searchParams } = new URL(request.url)
     const season = parseInt(searchParams.get('season') || String(CURRENT_SEASON), 10)
+    const postseason = searchParams.get('postseason') === 'true'
     const apiKey = getApiKey()
 
     const [averages, injury] = await Promise.all([
-      cached(`advanced-avg-${playerId}-${season}`, TTL.MEDIUM, () =>
-        fetchAdvancedAverages(playerId, season, apiKey),
+      cached(
+        `advanced-avg-${playerId}-${season}${postseason ? '-ps' : ''}`,
+        TTL.MEDIUM,
+        () => fetchAdvancedAverages(playerId, season, apiKey, postseason),
       ),
       cached(`injury-${playerId}`, TTL.SHORT, () =>
         fetchInjuryStatus(playerId, apiKey),

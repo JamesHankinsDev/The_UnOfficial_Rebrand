@@ -37,6 +37,19 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Player mention (inline hover-card trigger) */
+.player-mention {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: rgba(251, 191, 36, 0.4);
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+.player-mention:hover {
+  text-decoration-color: rgba(251, 191, 36, 0.9);
+}
+
 /* Tiptap editor styles */
 .ProseMirror {
   outline: none;

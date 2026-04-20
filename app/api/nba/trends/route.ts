@@ -38,10 +38,11 @@ interface TrendPlayer {
   max_deviation: number
 }
 
-async function computeTrends(season: number, baseUrl: string) {
+async function computeTrends(season: number, baseUrl: string, postseason = false) {
+  const ps = postseason ? '&postseason=true' : ''
   const [seasonRes, recentRes] = await Promise.all([
-    fetch(`${baseUrl}/api/nba/players/grid?season=${season}&period=season`),
-    fetch(`${baseUrl}/api/nba/players/grid?season=${season}&period=last5`),
+    fetch(`${baseUrl}/api/nba/players/grid?season=${season}&period=season${ps}`),
+    fetch(`${baseUrl}/api/nba/players/grid?season=${season}&period=last5${ps}`),
   ])
 
   if (!seasonRes.ok || !recentRes.ok) throw new Error('Failed to fetch grid data')
@@ -116,9 +117,13 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const season = parseInt(searchParams.get('season') || String(CURRENT_SEASON), 10)
+    const postseason = searchParams.get('postseason') === 'true'
     const baseUrl = new URL(request.url).origin
 
-    const trends = await cached(`trends-${season}`, TTL.SHORT, () => computeTrends(season, baseUrl))
+    const cacheKey = postseason ? `trends-ps-${season}` : `trends-${season}`
+    const trends = await cached(cacheKey, TTL.SHORT, () =>
+      computeTrends(season, baseUrl, postseason),
+    )
     return NextResponse.json(trends)
   } catch (error) {
     console.error('Trends error:', error)

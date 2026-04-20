@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { PlayerSearch } from './PlayerSearch'
 import { ComparisonBarChart, MultiStatTrendChart, STAT_COLORS } from './StatChart'
 import { STAT_DESCRIPTIONS } from '@/components/ui/StatHeader'
+import { Headshot } from './Headshot'
 
 interface Player {
   id: number
@@ -50,6 +51,8 @@ interface CompareResult {
     team: { full_name: string; abbreviation: string }
   }>
   averages: [SeasonAvg[], SeasonAvg[]]
+  nba_ids?: [number | null, number | null]
+  bios?: [{ age: number | null } | null, { age: number | null } | null]
 }
 
 interface GameStat {
@@ -88,7 +91,7 @@ function getGameStatValue(g: GameStat, key: TrendStatKey): number {
   }
 }
 
-export function PlayerComparison({ season }: { season: number }) {
+export function PlayerComparison({ season, postseason = false }: { season: number; postseason?: boolean }) {
   const [player1, setPlayer1] = useState<Player | null>(null)
   const [player2, setPlayer2] = useState<Player | null>(null)
   const [result, setResult] = useState<CompareResult | null>(null)
@@ -106,7 +109,8 @@ export function PlayerComparison({ season }: { season: number }) {
     setError('')
 
     try {
-      const res = await fetch(`/api/nba/players/compare?ids=${player1.id},${player2.id}&season=${season}`)
+      const ps = postseason ? '&postseason=true' : ''
+      const res = await fetch(`/api/nba/players/compare?ids=${player1.id},${player2.id}&season=${season}${ps}`)
       if (!res.ok) throw new Error('Failed to compare')
       const data: CompareResult = await res.json()
       setResult(data)
@@ -124,17 +128,18 @@ export function PlayerComparison({ season }: { season: number }) {
       return
     }
 
+    const ps = postseason ? '&postseason=true' : ''
     setGamesLoading(true)
     Promise.all([
-      fetch(`/api/nba/players/${player1.id}/games?season=${season}`).then(r => r.json()).catch(() => []),
-      fetch(`/api/nba/players/${player2.id}/games?season=${season}`).then(r => r.json()).catch(() => []),
+      fetch(`/api/nba/players/${player1.id}/games?season=${season}${ps}`).then(r => r.json()).catch(() => []),
+      fetch(`/api/nba/players/${player2.id}/games?season=${season}${ps}`).then(r => r.json()).catch(() => []),
     ]).then(([g1, g2]) => {
       setGameLogs([
         Array.isArray(g1) ? g1.slice(0, 15) : [],
         Array.isArray(g2) ? g2.slice(0, 15) : [],
       ])
     }).finally(() => setGamesLoading(false))
-  }, [result, player1, player2, season])
+  }, [result, player1, player2, season, postseason])
 
   const avg1 = result?.averages[0]?.[0]
   const avg2 = result?.averages[1]?.[0]
@@ -228,6 +233,36 @@ export function PlayerComparison({ season }: { season: number }) {
       {/* Comparison results */}
       {result && avg1 && avg2 && (
         <div className="space-y-6">
+          {/* Headshots + identity strip */}
+          <div className="grid grid-cols-2 gap-4">
+            {[0, 1].map((i) => {
+              const p = result.players[i]
+              const age = result.bios?.[i]?.age ?? null
+              const color = PLAYER_COLORS[i]
+              return (
+                <div key={i} className="border border-[#1e1e2a] rounded-xl p-4 bg-[#111118] flex items-center gap-3">
+                  <Headshot
+                    nbaId={result.nba_ids?.[i] ?? null}
+                    alt={`${p.first_name} ${p.last_name}`}
+                    size={64}
+                    rounded="full"
+                    className="border-2"
+                  />
+                  <div className="min-w-0">
+                    <div className="font-mono font-bold text-sm truncate" style={{ color }}>
+                      {p.first_name} {p.last_name}
+                    </div>
+                    <div className="font-mono text-xs text-[#5a5a64] truncate">
+                      {p.team?.abbreviation ?? '—'}
+                      {p.position ? ` · ${p.position}` : ''}
+                      {age != null ? ` · Age ${age}` : ''}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
           {/* Bar chart */}
           <div className="border border-[#1e1e2a] rounded-xl p-5">
             <h3 className="font-mono font-bold text-[#e8e6e3] text-sm mb-4">

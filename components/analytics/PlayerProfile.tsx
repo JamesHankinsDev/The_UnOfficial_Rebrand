@@ -2,8 +2,22 @@
 
 import React, { useEffect, useState } from 'react'
 import { MultiStatTrendChart, STAT_COLORS } from './StatChart'
+import { Headshot } from './Headshot'
 import { SALARY_CAP_USD } from '@/lib/constants'
 import { useWatchlist } from '@/hooks/useWatchlist'
+
+interface PlayerBio {
+  nba_id: number
+  birth_date: string | null
+  age: number | null
+  height_in: number | null
+  weight_lb: number | null
+  country: string | null
+  school: string | null
+  draft_year: number | null
+  draft_round: number | null
+  draft_number: number | null
+}
 
 type StatsView = 'stats' | 'cost' | 'efficiency'
 type GameFilter = 'all' | 'last3' | 'lastWeek' | 'thisMonth' | 'lastMonth'
@@ -84,8 +98,10 @@ interface GameStat {
 interface PlayerProfileProps {
   playerId: number
   season: number
-  onBack: () => void
+  postseason?: boolean
+  onBack?: () => void
   backLabel?: string
+  showWatchButton?: boolean
 }
 
 interface AdvancedAvg {
@@ -127,11 +143,20 @@ interface ContractAggregate {
   avg_annual_value: number | null
 }
 
-export function PlayerProfile({ playerId, season, onBack, backLabel }: PlayerProfileProps) {
+export function PlayerProfile({
+  playerId,
+  season,
+  postseason = false,
+  onBack,
+  backLabel,
+  showWatchButton = true,
+}: PlayerProfileProps) {
   const { isWatched, addToWatchlist, removeFromWatchlist } = useWatchlist()
   const watched = isWatched(playerId)
 
   const [player, setPlayer] = useState<PlayerData | null>(null)
+  const [nbaId, setNbaId] = useState<number | null>(null)
+  const [bio, setBio] = useState<PlayerBio | null>(null)
   const [averages, setAverages] = useState<SeasonAvg[]>([])
   const [games, setGames] = useState<GameStat[]>([])
   const [advanced, setAdvanced] = useState<AdvancedAvg | null>(null)
@@ -155,20 +180,26 @@ export function PlayerProfile({ playerId, season, onBack, backLabel }: PlayerPro
     setGameFilter('all')
     setActiveStats(['pts'])
 
-    fetch(`/api/nba/players/${playerId}?season=${season}`)
+    const ps = postseason ? '&postseason=true' : ''
+
+    fetch(`/api/nba/players/${playerId}?season=${season}${ps}`)
       .then(res => res.json())
       .then(data => {
         if (data.error) {
           setPlayer(null)
+          setNbaId(null)
+          setBio(null)
         } else {
           setPlayer(data.player ?? null)
           setAverages(data.seasonAverages || [])
+          setNbaId(data.nba_id ?? null)
+          setBio(data.bio ?? null)
         }
         setLoading(false)
       })
       .catch(() => setLoading(false))
 
-    fetch(`/api/nba/players/${playerId}/games?season=${season}`)
+    fetch(`/api/nba/players/${playerId}/games?season=${season}${ps}`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setGames(data)
@@ -177,7 +208,7 @@ export function PlayerProfile({ playerId, season, onBack, backLabel }: PlayerPro
       })
       .catch(() => { setGames([]); setGamesLoading(false) })
 
-    fetch(`/api/nba/players/${playerId}/advanced?season=${season}`)
+    fetch(`/api/nba/players/${playerId}/advanced?season=${season}${ps}`)
       .then(res => res.json())
       .then(data => {
         setAdvanced(data.averages ?? null)
@@ -192,7 +223,7 @@ export function PlayerProfile({ playerId, season, onBack, backLabel }: PlayerPro
         setContractAggregate(data.aggregate ?? null)
       })
       .catch(() => {})
-  }, [playerId, season])
+  }, [playerId, season, postseason])
 
   if (loading) {
     return (
@@ -277,31 +308,38 @@ export function PlayerProfile({ playerId, season, onBack, backLabel }: PlayerPro
 
   return (
     <div>
-      {/* Back button */}
-      <button
-        onClick={onBack}
-        className="font-mono text-xs text-[#8a8a94] hover:text-[#fbbf24] transition-colors mb-4 flex items-center gap-1"
-      >
-        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-        {backLabel || 'Back to search'}
-      </button>
+      {/* Back button — only when parent supplies an onBack handler */}
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="font-mono text-xs text-[#8a8a94] hover:text-[#fbbf24] transition-colors mb-4 flex items-center gap-1"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          {backLabel || 'Back to search'}
+        </button>
+      )}
 
       {/* Player header */}
       <div className="border border-[#1e1e2a] rounded-xl p-5 mb-6 bg-[#111118]">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-[#1e1e2a] flex items-center justify-center flex-shrink-0">
-            <span className="font-mono text-xl font-bold text-[#fbbf24]">
-              {player.jersey_number || '#'}
-            </span>
-          </div>
+          <Headshot
+            nbaId={nbaId}
+            alt={`${player.first_name} ${player.last_name}`}
+            size={96}
+            rounded="full"
+            className="border-2 border-[#1e1e2a]"
+          />
           <div className="flex-1">
             {/* Watch button — top right on mobile, inline on desktop */}
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1">
             <h2 className="font-mono font-bold text-[#e8e6e3] text-xl sm:text-2xl">
               {player.first_name} {player.last_name}
+              {player.jersey_number && (
+                <span className="ml-2 font-mono text-sm text-[#5a5a64]">#{player.jersey_number}</span>
+              )}
             </h2>
             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
               <span className="font-mono text-sm text-[#8a8a94]">
@@ -310,6 +348,11 @@ export function PlayerProfile({ playerId, season, onBack, backLabel }: PlayerPro
               <span className="font-mono text-sm text-[#5a5a64]">
                 {player.position || '—'}
               </span>
+              {bio?.age != null && (
+                <span className="font-mono text-sm text-[#5a5a64]">
+                  Age {bio.age}
+                </span>
+              )}
               {player.height && (
                 <span className="font-mono text-sm text-[#5a5a64]">{player.height}</span>
               )}
@@ -344,19 +387,21 @@ export function PlayerProfile({ playerId, season, onBack, backLabel }: PlayerPro
               </div>
             )}
               </div>
-              <button
-                onClick={() => watched ? removeFromWatchlist(playerId) : addToWatchlist(playerId)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 font-mono text-xs font-bold rounded-lg border transition-colors ${
-                  watched
-                    ? 'bg-[#fbbf24]/10 text-[#fbbf24] border-[#fbbf24]/30 hover:bg-[#fbbf24]/20'
-                    : 'bg-[#1e1e2a] text-[#8a8a94] border-[#1e1e2a] hover:text-[#e8e6e3] hover:border-[#3a3a44]'
-                }`}
-              >
-                <svg className="w-3.5 h-3.5" fill={watched ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-                </svg>
-                {watched ? 'Watching' : 'Watch'}
-              </button>
+              {showWatchButton && (
+                <button
+                  onClick={() => watched ? removeFromWatchlist(playerId) : addToWatchlist(playerId)}
+                  className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 font-mono text-xs font-bold rounded-lg border transition-colors ${
+                    watched
+                      ? 'bg-[#fbbf24]/10 text-[#fbbf24] border-[#fbbf24]/30 hover:bg-[#fbbf24]/20'
+                      : 'bg-[#1e1e2a] text-[#8a8a94] border-[#1e1e2a] hover:text-[#e8e6e3] hover:border-[#3a3a44]'
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" fill={watched ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                  </svg>
+                  {watched ? 'Watching' : 'Watch'}
+                </button>
+              )}
             </div>
           </div>
         </div>

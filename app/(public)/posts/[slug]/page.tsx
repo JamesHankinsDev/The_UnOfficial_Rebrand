@@ -14,6 +14,9 @@ import { ArticleCard } from '@/components/articles/ArticleCard'
 import { formatDate } from '@/lib/utils'
 import { ViewTracker } from '@/components/articles/ViewTracker'
 import { CommentSection } from '@/components/articles/CommentSection'
+import { ArticleBody } from '@/components/articles/ArticleBody'
+import { getActivePlayerIndex } from '@/lib/nba-persons'
+import { annotatePlayerMentions } from '@/lib/annotate-mentions'
 
 export const revalidate = 60
 
@@ -63,11 +66,15 @@ export default async function ArticlePage({ params }: Props) {
   const siteUrl = process.env.NEXT_PUBLIC_BASE_URL || ''
   const articleUrl = `${siteUrl}/posts/${article.slug}`
 
-  // Get related articles (same series or recent)
-  let related = await getPublishedArticles(
-    article.series ? { series: article.series, lim: 4 } : { lim: 4 }
-  ).catch(() => [])
-  related = related.filter(a => a.id !== article.id).slice(0, 3)
+  // Get related articles (same series or recent) + annotate player mentions
+  const [relatedRaw, activePlayers] = await Promise.all([
+    getPublishedArticles(
+      article.series ? { series: article.series, lim: 4 } : { lim: 4 },
+    ).catch(() => []),
+    getActivePlayerIndex().catch(() => []),
+  ])
+  const related = relatedRaw.filter((a) => a.id !== article.id).slice(0, 3)
+  const annotatedContent = annotatePlayerMentions(article.content, activePlayers)
 
   return (
     <article className="bg-[#0a0a0f]">
@@ -165,9 +172,9 @@ export default async function ArticlePage({ params }: Props) {
         )}
 
         {/* Article body */}
-        <div
-          className={`max-w-none mb-16 ${article.content.includes('<style>') ? '' : 'prose prose-invert'}`}
-          dangerouslySetInnerHTML={{ __html: article.content }}
+        <ArticleBody
+          html={annotatedContent}
+          prose={!article.content.includes('<style>')}
         />
 
         {/* Tags */}

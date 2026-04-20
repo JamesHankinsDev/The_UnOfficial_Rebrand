@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getApiKey, CURRENT_SEASON, SALARY_CAP_USD, getTeamsMap } from '@/lib/balldontlie'
 import { cached, cacheHeaders, TTL } from '@/lib/api-cache'
+import { getNbaPersonIdMap } from '@/lib/nba-persons'
 
 const BASE_URL = 'https://api.balldontlie.io/v1'
 const BASE_URL_NBA = 'https://api.balldontlie.io/nba/v1'
@@ -102,6 +103,7 @@ async function fetchSalaries(playerIds: number[]): Promise<Map<number, number | 
 
 interface GridPlayer {
   player_id: number
+  nba_id: number | null
   first_name: string
   last_name: string
   position: string
@@ -119,6 +121,15 @@ interface GridPlayer {
   stocks: number
   salary: number | null
   cap_pct: number | null
+}
+
+async function enrichWithNbaIds(list: GridPlayer[]): Promise<void> {
+  const map = await getNbaPersonIdMap().catch(() => null)
+  if (!map) return
+  for (const p of list) {
+    const key = `${p.first_name} ${p.last_name}`.toLowerCase()
+    p.nba_id = map.get(key) ?? null
+  }
 }
 
 interface RawStat {
@@ -191,6 +202,7 @@ async function buildSeasonGrid(season: number, skipQualification = false): Promi
 
     qualified.push({
       player_id: playerId,
+      nba_id: null,
       first_name: data.player.first_name,
       last_name: data.player.last_name,
       position: data.player.position,
@@ -226,6 +238,8 @@ async function buildSeasonGrid(season: number, skipQualification = false): Promi
     p.cap_pct = salary != null ? Math.round((salary / SALARY_CAP_USD) * 1000) / 10 : null
   }
 
+  await enrichWithNbaIds(qualified)
+
   return qualified
 }
 
@@ -234,6 +248,7 @@ async function buildRollingGrid(
   startDate: string,
   endDate: string,
   maxGamesPerPlayer?: number,
+  postseason = false,
 ): Promise<GridPlayer[]> {
   const apiKey = getApiKey()
   const teams = await getTeamsMap()
@@ -247,6 +262,7 @@ async function buildRollingGrid(
     url.searchParams.set('start_date', startDate)
     url.searchParams.set('end_date', endDate)
     url.searchParams.set('per_page', '100')
+    if (postseason) url.searchParams.set('postseason', 'true')
     if (cursor != null) url.searchParams.set('cursor', String(cursor))
     const res = await fetch(url.toString(), { headers: { Authorization: apiKey } })
     if (!res.ok) break
@@ -311,6 +327,7 @@ async function buildRollingGrid(
 
     qualified.push({
       player_id: playerId,
+      nba_id: null,
       first_name: data.player.first_name,
       last_name: data.player.last_name,
       position: data.player.position,
@@ -346,6 +363,8 @@ async function buildRollingGrid(
     p.cap_pct = salary != null ? Math.round((salary / SALARY_CAP_USD) * 1000) / 10 : null
   }
 
+  await enrichWithNbaIds(qualified)
+
   return qualified
 }
 
@@ -355,6 +374,38 @@ export async function GET(request: Request) {
     const season = parseInt(searchParams.get('season') || String(CURRENT_SEASON), 10)
     const period = searchParams.get('period') || 'season'
     const skipQual = searchParams.get('qualified') === 'false'
+    const postseason = searchParams.get('postseason') === 'true'
+
+    // Postseason path: always aggregate from /stats with postseason filter
+    if (postseason) {
+      const now = new Date()
+      const end = formatDate(now)
+      // Wide window covering all possible playoff dates for the season
+      // (2025-26 playoffs run April–June 2026; earlier seasons will simply have no games outside their own window)
+      const seasonStart = formatDate(new Date(season, 0, 1))
+      const gameCountMatch = period.match(/^last(\d+)$/)
+      if (gameCountMatch) {
+        const maxGames = parseInt(gameCountMatch[1], 10)
+        const cacheKey = `player-grid-ps-last${maxGames}-${season}-${end}`
+        const grid = await cached(cacheKey, TTL.SHORT, () =>
+          buildRollingGrid(season, seasonStart, end, maxGames, true),
+        )
+        return NextResponse.json(grid, { headers: cacheHeaders(TTL.SHORT) })
+      }
+      let start = seasonStart
+      if (period === 'week') {
+        const d = new Date(now)
+        d.setDate(d.getDate() - 7)
+        start = formatDate(d)
+      } else if (period === 'month') {
+        start = formatDate(new Date(now.getFullYear(), now.getMonth(), 1))
+      }
+      const cacheKey = `player-grid-ps-${period}-${season}-${start}-${end}`
+      const grid = await cached(cacheKey, TTL.SHORT, () =>
+        buildRollingGrid(season, start, end, undefined, true),
+      )
+      return NextResponse.json(grid, { headers: cacheHeaders(TTL.SHORT) })
+    }
 
     if (period === 'season') {
       const cacheKey = skipQual ? `player-grid-season-all-${season}` : `player-grid-season-${season}`

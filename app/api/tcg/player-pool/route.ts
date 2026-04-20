@@ -2,44 +2,10 @@ import { NextResponse } from "next/server";
 import { getApiKey, getTeamsList, CURRENT_SEASON } from "@/lib/balldontlie";
 import { cached, TTL } from "@/lib/api-cache";
 import { buildPlayerPool, type PoolPlayer } from "@/lib/tcg";
+import { getNbaPersonIdMap } from "@/lib/nba-persons";
 
 const BASE_URL = "https://api.balldontlie.io/v1";
 const CORE_STATS = ["pts", "reb", "ast", "blk", "stl"] as const;
-
-/** Fetches a name→personId map from the NBA Stats API. Cached for one day. */
-async function getNbaPersonIdMap(): Promise<Map<string, number>> {
-  const rows = await cached<{ id: number; name: string }[]>(
-    "nba-person-ids",
-    TTL.DAY,
-    async () => {
-      const nbaSeasonStr = `${CURRENT_SEASON}-${String(CURRENT_SEASON + 1).slice(-2)}`;
-      const res = await fetch(
-        `https://stats.nba.com/stats/commonallplayers?LeagueID=00&Season=${nbaSeasonStr}&IsOnlyCurrentSeason=1`,
-        {
-          headers: {
-            "User-Agent": "Mozilla/5.0",
-            Referer: "https://www.nba.com/",
-            Accept: "application/json",
-            Origin: "https://www.nba.com",
-          },
-        },
-      );
-      if (!res.ok) throw new Error(`NBA Stats API returned ${res.status}`);
-      const json = await res.json();
-      const rs = json.resultSets?.[0];
-      const personIdx: number = rs.headers.indexOf("PERSON_ID");
-      const nameIdx: number = rs.headers.indexOf("DISPLAY_FIRST_LAST");
-      return (rs.rowSet as unknown[][]).map((row) => ({
-        id: row[personIdx] as number,
-        name: row[nameIdx] as string,
-      }));
-    },
-  );
-
-  const map = new Map<string, number>();
-  for (const { id, name } of rows) map.set(name.toLowerCase(), id);
-  return map;
-}
 
 interface RawLeader {
   player: {

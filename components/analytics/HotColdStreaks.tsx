@@ -22,21 +22,23 @@ interface TrendPlayer {
 
 interface HotColdStreaksProps {
   season: number
+  postseason?: boolean
   onSelectPlayer: (playerId: number) => void
 }
 
-export function HotColdStreaks({ season, onSelectPlayer }: HotColdStreaksProps) {
+export function HotColdStreaks({ season, postseason = false, onSelectPlayer }: HotColdStreaksProps) {
   const [data, setData] = useState<{ trending_up: TrendPlayer[]; trending_down: TrendPlayer[] } | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/nba/trends?season=${season}`)
+    const ps = postseason ? '&postseason=true' : ''
+    fetch(`/api/nba/trends?season=${season}${ps}`)
       .then(res => res.ok ? res.json() : null)
       .then(d => setData(d))
       .catch(() => setData(null))
       .finally(() => setLoading(false))
-  }, [season])
+  }, [season, postseason])
 
   if (loading) {
     return (

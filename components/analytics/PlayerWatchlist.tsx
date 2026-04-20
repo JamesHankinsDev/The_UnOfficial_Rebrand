@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useWatchlist } from '@/hooks/useWatchlist'
 import { PlayerSearch } from './PlayerSearch'
+import { Headshot } from './Headshot'
 
 interface PlayerData {
   id: number
@@ -24,14 +25,17 @@ interface SeasonAvg {
 interface WatchedPlayer {
   player: PlayerData
   avg: SeasonAvg | null
+  nbaId: number | null
+  age: number | null
 }
 
 interface PlayerWatchlistProps {
   season: number
+  postseason?: boolean
   onSelectPlayer: (playerId: number) => void
 }
 
-export function PlayerWatchlist({ season, onSelectPlayer }: PlayerWatchlistProps) {
+export function PlayerWatchlist({ season, postseason = false, onSelectPlayer }: PlayerWatchlistProps) {
   const { watchedIds, addToWatchlist, removeFromWatchlist } = useWatchlist()
   const [players, setPlayers] = useState<Map<number, WatchedPlayer>>(new Map())
   const [loading, setLoading] = useState(false)
@@ -42,10 +46,11 @@ export function PlayerWatchlist({ season, onSelectPlayer }: PlayerWatchlistProps
     const toFetch = watchedIds.filter(id => !fetchedRef.current.has(id))
     if (toFetch.length === 0) return
 
+    const ps = postseason ? '&postseason=true' : ''
     setLoading(true)
     Promise.all(
       toFetch.map(id =>
-        fetch(`/api/nba/players/${id}?season=${season}`)
+        fetch(`/api/nba/players/${id}?season=${season}${ps}`)
           .then(r => r.ok ? r.json() : null)
           .then(data => {
             if (!data || data.error) return null
@@ -53,6 +58,8 @@ export function PlayerWatchlist({ season, onSelectPlayer }: PlayerWatchlistProps
               id,
               player: data.player as PlayerData,
               avg: (data.seasonAverages?.[0] as SeasonAvg) ?? null,
+              nbaId: (data.nba_id as number | null) ?? null,
+              age: ((data.bio?.age as number | null) ?? null),
             }
           })
           .catch(() => null),
@@ -62,7 +69,7 @@ export function PlayerWatchlist({ season, onSelectPlayer }: PlayerWatchlistProps
         const next = new Map(prev)
         for (const r of results) {
           if (r) {
-            next.set(r.id, { player: r.player, avg: r.avg })
+            next.set(r.id, { player: r.player, avg: r.avg, nbaId: r.nbaId, age: r.age })
             fetchedRef.current.add(r.id)
           }
         }
@@ -70,13 +77,13 @@ export function PlayerWatchlist({ season, onSelectPlayer }: PlayerWatchlistProps
       })
       setLoading(false)
     })
-  }, [watchedIds, season])
+  }, [watchedIds, season, postseason])
 
-  // Clear cache on season change
+  // Clear cache on season/period change
   useEffect(() => {
     fetchedRef.current.clear()
     setPlayers(new Map())
-  }, [season])
+  }, [season, postseason])
 
   // Remove players no longer watched from the map
   const watchedPlayers = watchedIds
@@ -125,11 +132,23 @@ export function PlayerWatchlist({ season, onSelectPlayer }: PlayerWatchlistProps
 
               {/* Player info — clickable */}
               <div className="cursor-pointer" onClick={() => onSelectPlayer(id)}>
-                <div className="font-mono text-sm font-bold text-[#e8e6e3] group-hover:text-[#fbbf24] transition-colors mb-0.5">
-                  {data.player.first_name} {data.player.last_name}
-                </div>
-                <div className="font-mono text-xs text-[#5a5a64] mb-3">
-                  {data.player.team?.abbreviation ?? '—'} {data.player.position ? `· ${data.player.position}` : ''}
+                <div className="flex items-center gap-3 mb-3">
+                  <Headshot
+                    nbaId={data.nbaId}
+                    alt={`${data.player.first_name} ${data.player.last_name}`}
+                    size={40}
+                    rounded="full"
+                  />
+                  <div className="min-w-0">
+                    <div className="font-mono text-sm font-bold text-[#e8e6e3] group-hover:text-[#fbbf24] transition-colors truncate">
+                      {data.player.first_name} {data.player.last_name}
+                    </div>
+                    <div className="font-mono text-xs text-[#5a5a64] truncate">
+                      {data.player.team?.abbreviation ?? '—'}
+                      {data.player.position ? ` · ${data.player.position}` : ''}
+                      {data.age != null ? ` · Age ${data.age}` : ''}
+                    </div>
+                  </div>
                 </div>
 
                 {data.avg ? (

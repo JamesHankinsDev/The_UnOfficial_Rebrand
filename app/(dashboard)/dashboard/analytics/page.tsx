@@ -28,11 +28,23 @@ interface TeamSelection {
   full_name: string
 }
 
+type PeriodFilter = 'regular' | 'postseason'
+
+const POSTSEASON_DISABLED_TABS: Record<TabId, boolean> = {
+  overview: false,
+  players: false,
+  compare: false,
+  watchlist: false,
+  teams: true,
+}
+
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<TabId>('overview')
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null)
   const [selectedTeam, setSelectedTeam] = useState<TeamSelection | null>(null)
   const [season, setSeason] = useState(currentSeason)
+  const [period, setPeriod] = useState<PeriodFilter>('regular')
+  const postseason = period === 'postseason'
 
   const handleSelectTeam = (team: TeamSelection) => {
     setSelectedTeam(team)
@@ -51,6 +63,8 @@ export default function AnalyticsPage() {
     setActiveTab('players')
   }
 
+  const periodSupported = !POSTSEASON_DISABLED_TABS[activeTab]
+
   return (
     <div className="p-6 sm:p-8 max-w-6xl mx-auto">
       {/* Header */}
@@ -60,26 +74,51 @@ export default function AnalyticsPage() {
           <p className="font-mono text-sm text-[#5a5a64] mt-1">Research NBA stats and metrics for your articles</p>
         </div>
 
-        {/* Season selector */}
-        <div className="flex items-center gap-2">
-          <label className="font-mono text-xs text-[#5a5a64]">Season</label>
-          <select
-            value={season}
-            onChange={(e) => {
-              setSeason(parseInt(e.target.value, 10))
-              setSelectedPlayerId(null)
-              setSelectedTeam(null)
-            }}
-            className="bg-[#111118] border border-[#1e1e2a] text-[#e8e6e3] text-sm font-mono rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#fbbf24] transition-colors"
-          >
-            {Array.from({ length: 10 }, (_, i) => currentSeason - i).map(y => (
-              <option key={y} value={y}>
-                {y}-{(y + 1).toString().slice(-2)}
-              </option>
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Regular / Postseason toggle */}
+          <div className="flex items-center gap-1 bg-[#111118] border border-[#1e1e2a] rounded-lg p-1">
+            {(['regular', 'postseason'] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={`px-3 py-1 text-xs font-mono tracking-widest uppercase rounded-md transition-colors ${
+                  period === p
+                    ? 'bg-[#fbbf24]/15 text-[#fbbf24]'
+                    : 'text-[#5a5a64] hover:text-[#e8e6e3]'
+                }`}
+              >
+                {p === 'regular' ? 'Regular' : 'Playoffs'}
+              </button>
             ))}
-          </select>
+          </div>
+
+          {/* Season selector */}
+          <div className="flex items-center gap-2">
+            <label className="font-mono text-xs text-[#5a5a64]">Season</label>
+            <select
+              value={season}
+              onChange={(e) => {
+                setSeason(parseInt(e.target.value, 10))
+                setSelectedPlayerId(null)
+                setSelectedTeam(null)
+              }}
+              className="bg-[#111118] border border-[#1e1e2a] text-[#e8e6e3] text-sm font-mono rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#fbbf24] transition-colors"
+            >
+              {Array.from({ length: 10 }, (_, i) => currentSeason - i).map(y => (
+                <option key={y} value={y}>
+                  {y}-{(y + 1).toString().slice(-2)}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
+
+      {postseason && !periodSupported && (
+        <div className="mb-4 bg-[#fbbf24]/10 border border-[#fbbf24]/30 rounded-lg px-4 py-2 font-mono text-xs text-[#fbbf24]">
+          This tab ignores the Playoffs filter &mdash; salary data is season-wide.
+        </div>
+      )}
 
       {/* Tab bar */}
       <div className="flex gap-1 border-b border-[#1e1e2a] mb-6 overflow-x-auto">
@@ -113,8 +152,19 @@ export default function AnalyticsPage() {
             <Scoreboard onSelectTeam={handleSelectTeam} />
           </section>
           <section>
-            <h2 className="font-mono font-bold text-[#e8e6e3] text-base mb-4">Hot & Cold Streaks</h2>
-            <HotColdStreaks season={season} onSelectPlayer={navigateToPlayer} />
+            <h2 className="font-mono font-bold text-[#e8e6e3] text-base mb-4">
+              Hot &amp; Cold Streaks
+              {postseason && (
+                <span className="ml-2 font-mono text-[10px] tracking-widest uppercase text-[#fbbf24]">
+                  Playoffs
+                </span>
+              )}
+            </h2>
+            <HotColdStreaks
+              season={season}
+              postseason={postseason}
+              onSelectPlayer={navigateToPlayer}
+            />
           </section>
         </div>
       )}
@@ -125,6 +175,7 @@ export default function AnalyticsPage() {
             <PlayerProfile
               playerId={selectedPlayerId}
               season={season}
+              postseason={postseason}
               onBack={() => setSelectedPlayerId(null)}
               backLabel={selectedTeam ? `Back to ${selectedTeam.full_name}` : undefined}
             />
@@ -155,6 +206,7 @@ export default function AnalyticsPage() {
 
               <PlayerGrid
                 season={season}
+                postseason={postseason}
                 onSelectPlayer={(id) => setSelectedPlayerId(id)}
                 teamFilter={selectedTeam}
               />
@@ -164,11 +216,15 @@ export default function AnalyticsPage() {
       )}
 
       {activeTab === 'compare' && (
-        <PlayerComparison season={season} />
+        <PlayerComparison season={season} postseason={postseason} />
       )}
 
       {activeTab === 'watchlist' && (
-        <PlayerWatchlist season={season} onSelectPlayer={navigateToPlayer} />
+        <PlayerWatchlist
+          season={season}
+          postseason={postseason}
+          onSelectPlayer={navigateToPlayer}
+        />
       )}
 
       {activeTab === 'teams' && (

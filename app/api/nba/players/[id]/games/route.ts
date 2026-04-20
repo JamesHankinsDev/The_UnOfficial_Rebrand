@@ -21,13 +21,18 @@ export async function GET(
 
     const { searchParams } = new URL(request.url)
     const season = parseInt(searchParams.get('season') || String(CURRENT_SEASON), 10)
+    const postseason = searchParams.get('postseason') === 'true'
 
-    // Fetch the most recent games — 65 day window covers current + previous month
+    // Postseason: cover the full playoff window; otherwise recent 65 days
     const endDate = new Date()
     const startDate = new Date()
-    startDate.setDate(startDate.getDate() - 65)
+    if (postseason) {
+      startDate.setTime(new Date(season, 0, 1).getTime())
+    } else {
+      startDate.setDate(startDate.getDate() - 65)
+    }
 
-    const cacheKey = `player-games-${playerId}-${season}-${formatDate(endDate)}`
+    const cacheKey = `player-games-${playerId}-${season}-${postseason ? 'ps' : 'rs'}-${formatDate(endDate)}`
 
     const games = await cached(cacheKey, TTL.SHORT, async () => {
       const apiKey = getApiKey()
@@ -36,7 +41,8 @@ export async function GET(
       url.searchParams.set('seasons[]', String(season))
       url.searchParams.set('start_date', formatDate(startDate))
       url.searchParams.set('end_date', formatDate(endDate))
-      url.searchParams.set('per_page', '40')
+      url.searchParams.set('per_page', '100')
+      if (postseason) url.searchParams.set('postseason', 'true')
 
       const res = await fetch(url.toString(), {
         headers: { Authorization: apiKey },

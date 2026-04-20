@@ -2,9 +2,11 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { STAT_DESCRIPTIONS } from '@/components/ui/StatHeader'
+import { Headshot } from './Headshot'
 
 interface GridPlayer {
   player_id: number
+  nba_id: number | null
   first_name: string
   last_name: string
   position: string
@@ -105,11 +107,12 @@ const periodLabels: Record<Period, string> = {
 
 interface PlayerGridProps {
   season: number
+  postseason?: boolean
   onSelectPlayer: (playerId: number) => void
   teamFilter?: { abbreviation: string; full_name: string } | null
 }
 
-export function PlayerGrid({ season, onSelectPlayer, teamFilter }: PlayerGridProps) {
+export function PlayerGrid({ season, postseason = false, onSelectPlayer, teamFilter }: PlayerGridProps) {
   const [players, setPlayers] = useState<GridPlayer[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -150,7 +153,8 @@ export function PlayerGrid({ season, onSelectPlayer, teamFilter }: PlayerGridPro
     setLoading(true)
     setError('')
     setPage(0)
-    fetch(`/api/nba/players/grid?season=${season}&period=${period}`)
+    const ps = postseason ? '&postseason=true' : ''
+    fetch(`/api/nba/players/grid?season=${season}&period=${period}${ps}`)
       .then(res => {
         if (!res.ok) throw new Error('Failed to load')
         return res.json()
@@ -163,7 +167,7 @@ export function PlayerGrid({ season, onSelectPlayer, teamFilter }: PlayerGridPro
         setError('Failed to load player data')
         setLoading(false)
       })
-  }, [season, period])
+  }, [season, period, postseason])
 
   // Reset page when filters change
   useEffect(() => { setPage(0) }, [search, posFilter, contractFilter, teamFilter, sortKey, sortDir])
@@ -434,7 +438,19 @@ export function PlayerGrid({ season, onSelectPlayer, teamFilter }: PlayerGridPro
                               : 'text-[#8a8a94]'
                         }`}
                       >
-                        {col.format(player)}
+                        {col.key === 'name' ? (
+                          <div className="flex items-center gap-2">
+                            <Headshot
+                              nbaId={player.nba_id}
+                              alt={`${player.first_name} ${player.last_name}`}
+                              size={28}
+                              rounded="full"
+                            />
+                            <span>{col.format(player)}</span>
+                          </div>
+                        ) : (
+                          col.format(player)
+                        )}
                       </td>
                     ))}
                   </tr>

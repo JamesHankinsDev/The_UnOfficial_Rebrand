@@ -7,6 +7,7 @@ import type {
   SeriesGameRow,
   SeriesLeaderRow,
 } from '@/app/api/nba/playoffs/[seriesId]/route'
+import { PlayerHoverRoot } from '@/components/player/PlayerHoverRoot'
 
 const ROUND_LABELS: Record<number, string> = {
   1: 'First Round',
@@ -63,6 +64,7 @@ export function SeriesDetail({ seriesId }: { seriesId: string }) {
 
   return (
     <div>
+      <PlayerHoverRoot />
       <BackLink />
 
       <div className="mb-8">
@@ -224,7 +226,11 @@ function LeaderGroup({
                 <span className="font-mono text-xs text-[#5a5a64] w-4">
                   {i + 1}
                 </span>
-                <span className="font-mono text-sm text-[#e8e6e3] truncate">
+                <span
+                  className="font-mono text-sm text-[#e8e6e3] truncate player-mention"
+                  data-player-id={r.playerId}
+                  data-player-name={r.name}
+                >
                   {r.name}
                 </span>
                 <span className="font-mono text-[10px] text-[#5a5a64]">
