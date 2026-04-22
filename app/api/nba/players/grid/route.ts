@@ -387,10 +387,10 @@ export async function GET(request: Request) {
       if (gameCountMatch) {
         const maxGames = parseInt(gameCountMatch[1], 10)
         const cacheKey = `player-grid-ps-last${maxGames}-${season}-${end}`
-        const grid = await cached(cacheKey, TTL.SHORT, () =>
+        const grid = await cached(cacheKey, TTL.LIVE, () =>
           buildRollingGrid(season, seasonStart, end, maxGames, true),
         )
-        return NextResponse.json(grid, { headers: cacheHeaders(TTL.SHORT) })
+        return NextResponse.json(grid, { headers: cacheHeaders(TTL.LIVE) })
       }
       let start = seasonStart
       if (period === 'week') {
@@ -401,10 +401,10 @@ export async function GET(request: Request) {
         start = formatDate(new Date(now.getFullYear(), now.getMonth(), 1))
       }
       const cacheKey = `player-grid-ps-${period}-${season}-${start}-${end}`
-      const grid = await cached(cacheKey, TTL.SHORT, () =>
+      const grid = await cached(cacheKey, TTL.LIVE, () =>
         buildRollingGrid(season, start, end, undefined, true),
       )
-      return NextResponse.json(grid, { headers: cacheHeaders(TTL.SHORT) })
+      return NextResponse.json(grid, { headers: cacheHeaders(TTL.LIVE) })
     }
 
     if (period === 'season') {

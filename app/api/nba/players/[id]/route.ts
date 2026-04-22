@@ -111,12 +111,13 @@ export async function GET(
 
     const api = getApi()
 
+    const today = new Date().toISOString().split('T')[0]
     const [playerRes, averagesRes] = await Promise.all([
       cached(`player-${playerId}`, TTL.LONG, () =>
         api.nba.getPlayer(playerId)
       ),
       postseason
-        ? cached(`season-avg-ps-${playerId}-${season}`, TTL.SHORT, () =>
+        ? cached(`season-avg-ps-${playerId}-${season}-${today}`, TTL.LIVE, () =>
             computePostseasonAverages(playerId, season),
           )
         : cached(`season-avg-${playerId}-${season}`, TTL.MEDIUM, () =>

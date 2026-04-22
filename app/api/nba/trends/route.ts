@@ -120,8 +120,12 @@ export async function GET(request: Request) {
     const postseason = searchParams.get('postseason') === 'true'
     const baseUrl = new URL(request.url).origin
 
-    const cacheKey = postseason ? `trends-ps-${season}` : `trends-${season}`
-    const trends = await cached(cacheKey, TTL.SHORT, () =>
+    const today = new Date().toISOString().split('T')[0]
+    const cacheKey = postseason
+      ? `trends-ps-${season}-${today}`
+      : `trends-${season}`
+    const ttl = postseason ? TTL.LIVE : TTL.SHORT
+    const trends = await cached(cacheKey, ttl, () =>
       computeTrends(season, baseUrl, postseason),
     )
     return NextResponse.json(trends)

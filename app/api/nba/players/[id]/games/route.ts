@@ -33,8 +33,9 @@ export async function GET(
     }
 
     const cacheKey = `player-games-${playerId}-${season}-${postseason ? 'ps' : 'rs'}-${formatDate(endDate)}`
+    const ttl = postseason ? TTL.LIVE : TTL.SHORT
 
-    const games = await cached(cacheKey, TTL.SHORT, async () => {
+    const games = await cached(cacheKey, ttl, async () => {
       const apiKey = getApiKey()
       const url = new URL(`${BASE_URL}/stats`)
       url.searchParams.set('player_ids[]', String(playerId))

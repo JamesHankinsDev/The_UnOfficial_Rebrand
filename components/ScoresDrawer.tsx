@@ -89,8 +89,9 @@ export function ScoresDrawer() {
       {/* Drawer panel */}
       <div
         className={`fixed top-0 right-0 h-full w-80 z-40 bg-[#0a0a0f] border-l border-[#1e1e2a] transform transition-transform duration-300 ease-in-out ${
-          open ? 'translate-x-0' : 'translate-x-full'
+          open ? 'translate-x-0' : 'translate-x-full pointer-events-none'
         } overflow-y-auto`}
+        aria-hidden={!open}
       >
         <div className="sticky top-0 bg-[#0a0a0f] border-b border-[#1e1e2a] px-4 py-3 flex items-center justify-between">
           <h2 className="font-mono text-sm font-bold text-[#e8e6e3] tracking-wide">
