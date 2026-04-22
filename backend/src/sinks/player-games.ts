@@ -3,6 +3,9 @@ import { getAdminDb } from '../firestore.js'
 
 export interface PlayerGameDoc {
   playerId: number
+  firstName: string
+  lastName: string
+  position: string
   gameId: number
   gameDate: string
   season: number

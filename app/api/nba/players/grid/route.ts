@@ -4,6 +4,7 @@ import { cached, cacheHeaders, TTL } from '@/lib/api-cache'
 import { bdlFetch, BdlRateLimitError, rateLimitResponse } from '@/lib/bdl-fetch'
 import { getNbaPersonIdMap, normalizePlayerName } from '@/lib/nba-persons'
 import { readSalaries } from '@/lib/salary-snapshot'
+import { readPlayerGamesInRange } from '@/lib/player-games-read'
 
 const BASE_URL = 'https://api.balldontlie.io/v1'
 const BASE_URL_NBA = 'https://api.balldontlie.io/nba/v1'
@@ -279,17 +280,67 @@ async function buildSeasonGrid(season: number, skipQualification = false): Promi
   return qualified
 }
 
-async function buildRollingGrid(
+// Window covered by the Railway ingest worker. Must match
+// INGEST_WINDOW_DAYS in backend/src/ingest.ts (14d). Grid requests whose
+// startDate falls within this window read from Firestore; anything older
+// falls through to the BDL pagination.
+const FIRESTORE_COVERAGE_DAYS = 14
+
+function firestoreCoverageStart(): string {
+  const d = new Date()
+  d.setDate(d.getDate() - FIRESTORE_COVERAGE_DAYS)
+  return formatDate(d)
+}
+
+async function fetchStatRowsForGrid(
   season: number,
   startDate: string,
   endDate: string,
-  maxGamesPerPlayer?: number,
-  postseason = false,
-): Promise<GridPlayer[]> {
-  const apiKey = getApiKey()
-  const teams = await getTeamsMap()
+  postseason: boolean,
+  apiKey: string,
+): Promise<(RawStat & { game_date?: string })[]> {
+  const useFirestore = startDate >= firestoreCoverageStart()
+  if (useFirestore) {
+    try {
+      const rows = await readPlayerGamesInRange({
+        season,
+        postseason,
+        startDate,
+        endDate,
+      })
+      if (rows.length > 0) {
+        console.log(
+          `[grid] firestore: ${rows.length} rows (${startDate}..${endDate}, ps=${postseason})`,
+        )
+        return rows.map((r) => ({
+          min: String(r.min),
+          pts: r.pts,
+          reb: r.reb,
+          ast: r.ast,
+          stl: r.stl,
+          blk: r.blk,
+          player: {
+            id: r.playerId,
+            first_name: r.firstName,
+            last_name: r.lastName,
+            position: r.position,
+            team_id: r.teamId,
+          },
+          game_date: r.gameDate,
+        }))
+      }
+      console.warn(
+        `[grid] firestore returned 0 rows for in-coverage window — falling back to BDL`,
+      )
+    } catch (err) {
+      console.warn('[grid] firestore read failed, falling back to BDL:', err)
+    }
+  }
 
-  // Paginate through all stats in the date range
+  // BDL fallback — paginate /stats in the date range
+  console.log(
+    `[grid] bdl: ${startDate}..${endDate}, ps=${postseason}${useFirestore ? ' (firestore empty)' : ''}`,
+  )
   const allStats: (RawStat & { game_date?: string })[] = []
   let cursor: number | null = null
   do {
@@ -303,9 +354,31 @@ async function buildRollingGrid(
     const res = await bdlFetch(url.toString(), apiKey)
     if (!res.ok) break
     const json = await res.json()
-    allStats.push(...((json.data ?? []) as (RawStat & { game_date?: string })[]))
+    allStats.push(
+      ...((json.data ?? []) as (RawStat & { game_date?: string })[]),
+    )
     cursor = json.meta?.next_cursor ?? null
   } while (cursor != null)
+  return allStats
+}
+
+async function buildRollingGrid(
+  season: number,
+  startDate: string,
+  endDate: string,
+  maxGamesPerPlayer?: number,
+  postseason = false,
+): Promise<GridPlayer[]> {
+  const apiKey = getApiKey()
+  const teams = await getTeamsMap()
+
+  const allStats = await fetchStatRowsForGrid(
+    season,
+    startDate,
+    endDate,
+    postseason,
+    apiKey,
+  )
 
   // Collect per-player game entries
   const playerGames = new Map<number, {

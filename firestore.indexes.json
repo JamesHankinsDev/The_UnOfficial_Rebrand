@@ -98,6 +98,15 @@
         { "fieldPath": "memberUids", "arrayConfig": "CONTAINS" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "games",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "season", "order": "ASCENDING" },
+        { "fieldPath": "postseason", "order": "ASCENDING" },
+        { "fieldPath": "gameDate", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -6,7 +6,7 @@ import {
 } from './sources/bdl.js'
 import { writePlayerGames, type PlayerGameDoc } from './sinks/player-games.js'
 
-const INGEST_WINDOW_DAYS = 7
+const INGEST_WINDOW_DAYS = 14
 
 function formatDate(d: Date): string {
   return d.toISOString().split('T')[0]
@@ -31,6 +31,9 @@ function toDoc(row: RawStatRow): PlayerGameDoc {
 
   return {
     playerId: row.player.id,
+    firstName: row.player.first_name,
+    lastName: row.player.last_name,
+    position: row.player.position ?? '',
     gameId: row.game.id,
     gameDate: row.game.date,
     season: row.game.season,
