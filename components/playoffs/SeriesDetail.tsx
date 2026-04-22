@@ -7,7 +7,6 @@ import type {
   SeriesGameRow,
   SeriesLeaderRow,
 } from '@/app/api/nba/playoffs/[seriesId]/route'
-import { PlayerHoverRoot } from '@/components/player/PlayerHoverRoot'
 import { useBoxScore } from '@/components/box-score/BoxScoreContext'
 
 const ROUND_LABELS: Record<number, string> = {
@@ -65,7 +64,6 @@ export function SeriesDetail({ seriesId }: { seriesId: string }) {
 
   return (
     <div>
-      <PlayerHoverRoot />
       <BackLink />
 
       <div className="mb-8">

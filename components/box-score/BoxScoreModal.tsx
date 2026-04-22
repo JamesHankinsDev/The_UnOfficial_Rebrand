@@ -266,7 +266,13 @@ function TeamSection({
       {lines.map((p) => (
         <tr key={p.playerId} className="border-t border-[#1e1e2a] text-[#8a8a94]">
           <td className="py-1.5 pr-2 text-[#e8e6e3]">
-            {p.firstName} {p.lastName}
+            <span
+              data-player-id={p.playerId}
+              data-player-name={`${p.firstName} ${p.lastName}`}
+              className="cursor-help hover:text-[#fbbf24] transition-colors"
+            >
+              {p.firstName} {p.lastName}
+            </span>
             {p.position && (
               <span className="text-[#5a5a64] ml-1">· {p.position}</span>
             )}

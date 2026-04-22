@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
+import { PlayerHoverRoot } from '@/components/player/PlayerHoverRoot'
 import { BoxScoreModal } from './BoxScoreModal'
 
 interface BoxScoreContextValue {
@@ -20,6 +21,13 @@ export function BoxScoreProvider({ children }: { children: ReactNode }) {
     <BoxScoreContext.Provider value={{ openBoxScore, closeBoxScore }}>
       {children}
       <BoxScoreModal gameId={gameId} onClose={closeBoxScore} />
+      {/*
+        Single app-wide mount for the player hover card. Lives here (and
+        not in app/layout.tsx) so the 'use client' boundary stays where
+        it needs to be. Any [data-player-id] element anywhere in the
+        tree will now surface a quick-stats card on hover.
+      */}
+      <PlayerHoverRoot />
     </BoxScoreContext.Provider>
   )
 }
