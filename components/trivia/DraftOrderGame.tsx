@@ -3,8 +3,9 @@
 import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
+import { formatResetsIn } from '@/lib/earn-client'
 import { useAuth } from '@/contexts/AuthContext'
-import { creditBucks } from '@/lib/firestore'
+import { earnBucks } from '@/lib/earn-client'
 import { SortablePlayerList, type SortablePlayer } from './SortablePlayerList'
 
 interface DraftAnswer {
@@ -61,9 +62,22 @@ export function DraftOrderGame({ onBack }: DraftOrderGameProps) {
     setBucksEarned(correct)
     setState('results')
 
-    // Credit bucks for correct answers
+    // Credit bucks for correct answers via the server-side cap gate.
     if (correct > 0 && user) {
-      creditBucks(user.uid, correct).catch(() => {})
+      earnBucks(user, { source: 'trivia.draft-order', amount: correct })
+        .then((res) => {
+          if (res.wasOverCap) {
+            toast(`Daily earning cap hit. Keep playing — coins reset in ${formatResetsIn(res.resetsInMs)}.`, { icon: '⏳' })
+          } else if (res.willCapAfter) {
+            toast.success(
+              `+${res.credited} coins. You've hit your daily cap — resets in ${formatResetsIn(res.resetsInMs)}.`,
+            )
+          }
+          setBucksEarned(res.credited)
+        })
+        .catch(() => {
+          // Network or auth failure — silent; the local score already rendered
+        })
     }
   }
 

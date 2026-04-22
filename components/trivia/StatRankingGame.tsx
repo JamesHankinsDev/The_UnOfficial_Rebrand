@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 import { useAuth } from '@/contexts/AuthContext'
-import { creditBucks } from '@/lib/firestore'
+import { earnBucks, formatResetsIn } from '@/lib/earn-client'
 import { SortablePlayerList, type SortablePlayer } from './SortablePlayerList'
 
 interface StatAnswer {
@@ -85,7 +85,18 @@ export function StatRankingGame({
     setState('results')
 
     if (earned > 0 && user) {
-      creditBucks(user.uid, earned).catch(() => {})
+      earnBucks(user, { source: 'trivia.stat-ranking', amount: earned })
+        .then((res) => {
+          if (res.wasOverCap) {
+            toast(`Daily earning cap hit. Keep playing — coins reset in ${formatResetsIn(res.resetsInMs)}.`, { icon: '⏳' })
+          } else if (res.willCapAfter) {
+            toast.success(
+              `+${res.credited} coins. You've hit your daily cap — resets in ${formatResetsIn(res.resetsInMs)}.`,
+            )
+          }
+          setBucksEarned(res.credited)
+        })
+        .catch(() => {})
     }
   }
 
