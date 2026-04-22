@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getApiKey, CURRENT_SEASON } from '@/lib/balldontlie'
 import { cached, TTL } from '@/lib/api-cache'
+import { bdlFetch, rateLimitResponse } from '@/lib/bdl-fetch'
 
 const BASE_URL = 'https://api.balldontlie.io/nba/v1'
 
@@ -35,9 +36,9 @@ async function fetchContracts(
   playerId: number,
   apiKey: string,
 ): Promise<PlayerContract | null> {
-  const res = await fetch(
+  const res = await bdlFetch(
     `${BASE_URL}/contracts/players?player_id=${playerId}&per_page=100`,
-    { headers: { Authorization: apiKey } },
+    apiKey,
   )
   if (!res.ok) return null
   const json = await res.json()
@@ -67,9 +68,9 @@ async function fetchAggregate(
   playerId: number,
   apiKey: string,
 ): Promise<ContractAggregate | null> {
-  const res = await fetch(
+  const res = await bdlFetch(
     `${BASE_URL}/contracts/players/aggregate?player_id=${playerId}`,
-    { headers: { Authorization: apiKey } },
+    apiKey,
   )
   if (!res.ok) return null
   const json = await res.json()
@@ -107,6 +108,8 @@ export async function GET(
 
     return NextResponse.json({ current, aggregate } satisfies ContractsResponse)
   } catch (error) {
+    const rateLimit = rateLimitResponse(error)
+    if (rateLimit) return rateLimit
     console.error('Contracts error:', error)
     return NextResponse.json({ error: 'Failed to fetch contracts' }, { status: 500 })
   }

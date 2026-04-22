@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getApiKey, CURRENT_SEASON } from '@/lib/balldontlie'
 import { cached, TTL } from '@/lib/api-cache'
+import { bdlFetch, rateLimitResponse } from '@/lib/bdl-fetch'
 
 const BASE_URL = 'https://api.balldontlie.io/v1'
 
@@ -45,9 +46,7 @@ export async function GET(
       url.searchParams.set('per_page', '100')
       if (postseason) url.searchParams.set('postseason', 'true')
 
-      const res = await fetch(url.toString(), {
-        headers: { Authorization: apiKey },
-      })
+      const res = await bdlFetch(url.toString(), apiKey)
       if (!res.ok) throw new Error(`Stats API returned ${res.status}`)
       const json = await res.json()
       return json.data ?? json
@@ -62,6 +61,8 @@ export async function GET(
 
     return NextResponse.json(sorted)
   } catch (error) {
+    const rateLimit = rateLimitResponse(error)
+    if (rateLimit) return rateLimit
     console.error('Player games error:', error)
     return NextResponse.json({ error: 'Failed to fetch player games' }, { status: 500 })
   }

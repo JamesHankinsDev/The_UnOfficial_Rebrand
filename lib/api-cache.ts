@@ -12,6 +12,31 @@ import { unstable_cache, revalidateTag } from "next/cache";
 const inflight = new Map<string, Promise<unknown>>();
 
 /**
+ * Hard ceiling on how long a single fetcher invocation can take before
+ * we reject and free the in-flight slot. Without this, a hung upstream
+ * (e.g. BallDontLie not responding) pins the coalesced promise open and
+ * every subsequent caller waits on the same dead promise.
+ */
+const FETCHER_TIMEOUT_MS = 30_000;
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`cache fetcher timed out after ${ms}ms: ${label}`)),
+      ms,
+    );
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+/**
  * Return cached data if fresh, otherwise call `fetcher` and cache the result.
  * Uses Next.js Data Cache (shared) with in-process request coalescing.
  *
@@ -29,10 +54,14 @@ export async function cached<T>(
   }
 
   const revalidate = Math.max(1, Math.round(ttlMs / 1000));
-  const cachedFetcher = unstable_cache(fetcher, [key], {
-    revalidate,
-    tags: [key, "all-api-cache"],
-  });
+  const cachedFetcher = unstable_cache(
+    () => withTimeout(fetcher(), FETCHER_TIMEOUT_MS, key),
+    [key],
+    {
+      revalidate,
+      tags: [key, "all-api-cache"],
+    },
+  );
 
   const promise = cachedFetcher()
     .then((data) => {

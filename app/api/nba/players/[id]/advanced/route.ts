@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getApiKey, CURRENT_SEASON } from '@/lib/balldontlie'
 import { cached, TTL } from '@/lib/api-cache'
+import { bdlFetch, rateLimitResponse } from '@/lib/bdl-fetch'
 
 const BASE_URL = 'https://api.balldontlie.io/v1'
 
@@ -45,9 +46,9 @@ async function fetchAdvancedAverages(
   postseason = false,
 ): Promise<AdvancedSeasonAverages | null> {
   const postseasonParam = postseason ? '&postseason=true' : ''
-  const res = await fetch(
+  const res = await bdlFetch(
     `${BASE_URL}/stats/advanced?player_ids[]=${playerId}&seasons[]=${season}&per_page=100${postseasonParam}`,
-    { headers: { Authorization: apiKey } },
+    apiKey,
   )
   if (!res.ok) return null
   const json = await res.json()
@@ -74,9 +75,9 @@ async function fetchInjuryStatus(
   playerId: number,
   apiKey: string,
 ): Promise<PlayerInjury | null> {
-  const res = await fetch(
+  const res = await bdlFetch(
     `${BASE_URL}/player_injuries?player_ids[]=${playerId}`,
-    { headers: { Authorization: apiKey } },
+    apiKey,
   )
   if (!res.ok) return null
   const json = await res.json()
@@ -118,6 +119,8 @@ export async function GET(
 
     return NextResponse.json({ averages, injury } satisfies AdvancedResponse)
   } catch (error) {
+    const rateLimit = rateLimitResponse(error)
+    if (rateLimit) return rateLimit
     console.error('Advanced stats error:', error)
     return NextResponse.json({ error: 'Failed to fetch advanced stats' }, { status: 500 })
   }

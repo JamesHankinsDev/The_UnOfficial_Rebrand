@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getApi, getApiKey, CURRENT_SEASON } from '@/lib/balldontlie'
 import { cached, cacheHeaders, TTL } from '@/lib/api-cache'
+import { bdlFetch, rateLimitResponse } from '@/lib/bdl-fetch'
 import { resolveNbaPersonId, getNbaPlayerBio } from '@/lib/nba-persons'
 
 const BASE_URL = 'https://api.balldontlie.io/v1'
@@ -52,7 +53,7 @@ async function aggregatePostseason(
     url.searchParams.set('postseason', 'true')
     url.searchParams.set('per_page', '100')
     if (cursor != null) url.searchParams.set('cursor', String(cursor))
-    const res = await fetch(url.toString(), { headers: { Authorization: apiKey } })
+    const res = await bdlFetch(url.toString(), apiKey)
     if (!res.ok) break
     const json = await res.json()
     all.push(...((json.data ?? []) as RawStat[]))
@@ -159,6 +160,8 @@ export async function GET(
 
     return NextResponse.json(payload, { headers: cacheHeaders(TTL.SHORT) })
   } catch (err) {
+    const rateLimit = rateLimitResponse(err)
+    if (rateLimit) return rateLimit
     console.error('Quick-view error:', err)
     return NextResponse.json({ error: 'Failed to fetch quick view' }, { status: 500 })
   }

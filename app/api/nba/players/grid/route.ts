@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getApiKey, CURRENT_SEASON, SALARY_CAP_USD, getTeamsMap } from '@/lib/balldontlie'
 import { cached, cacheHeaders, TTL } from '@/lib/api-cache'
+import { bdlFetch, BdlRateLimitError, rateLimitResponse } from '@/lib/bdl-fetch'
 import { getNbaPersonIdMap, normalizePlayerName } from '@/lib/nba-persons'
 
 const BASE_URL = 'https://api.balldontlie.io/v1'
@@ -34,9 +35,7 @@ type TeamInfo = { id: number; abbreviation: string; full_name: string }
 async function fetchLeadersForStat(stat: string, season: number): Promise<RawLeader[]> {
   return cached(`leaders-${stat}-${season}`, TTL.MEDIUM, async () => {
     const apiKey = getApiKey()
-    const res = await fetch(`${BASE_URL}/leaders?stat_type=${stat}&season=${season}`, {
-      headers: { Authorization: apiKey },
-    })
+    const res = await bdlFetch(`${BASE_URL}/leaders?stat_type=${stat}&season=${season}`, apiKey)
     if (!res.ok) throw new Error(`Leaders API returned ${res.status}`)
     const json = await res.json()
     return json.data ?? json
@@ -54,7 +53,7 @@ async function fetchDraftYears(playerIds: number[]): Promise<Map<number, number 
       const url = new URL(`${BASE_URL}/players`)
       for (const id of batch) url.searchParams.append('player_ids[]', String(id))
       url.searchParams.set('per_page', '100')
-      const res = await fetch(url.toString(), { headers: { Authorization: apiKey } })
+      const res = await bdlFetch(url.toString(), apiKey)
       if (!res.ok) continue
       const json = await res.json()
       const players: { id: number; draft_year: number | null }[] = json.data ?? []
@@ -78,9 +77,9 @@ async function fetchSalaries(playerIds: number[]): Promise<Map<number, number | 
       batch.map((id) =>
         cached(`contract-${id}`, TTL.DAY, async () => {
           try {
-            const res = await fetch(
+            const res = await bdlFetch(
               `${BASE_URL_NBA}/contracts/players?player_id=${id}&per_page=100`,
-              { headers: { Authorization: apiKey } },
+              apiKey,
             )
             if (!res.ok) return { player_id: id, salary: null as number | null }
             const data = await res.json()
@@ -89,7 +88,10 @@ async function fetchSalaries(playerIds: number[]): Promise<Map<number, number | 
             const current = records.find(r => r.season === CURRENT_SEASON) ?? records[records.length - 1]
             const salary = current.base_salary ?? current.cap_hit ?? null
             return { player_id: id, salary: salary as number | null }
-          } catch {
+          } catch (err) {
+            // Re-throw rate limits so the grid request surfaces 429 to
+            // the client instead of silently shipping blank salaries.
+            if (err instanceof BdlRateLimitError) throw err
             return { player_id: id, salary: null as number | null }
           }
         }),
@@ -228,8 +230,14 @@ async function buildSeasonGrid(season: number, skipQualification = false): Promi
   // Enrich with draft years + salaries in parallel
   const ids = qualified.map(p => p.player_id)
   const [draftYears, salaries] = await Promise.all([
-    fetchDraftYears(ids).catch(() => new Map<number, number | null>()),
-    fetchSalaries(ids).catch(() => new Map<number, number | null>()),
+    fetchDraftYears(ids).catch((err) => {
+      if (err instanceof BdlRateLimitError) throw err
+      return new Map<number, number | null>()
+    }),
+    fetchSalaries(ids).catch((err) => {
+      if (err instanceof BdlRateLimitError) throw err
+      return new Map<number, number | null>()
+    }),
   ])
   for (const p of qualified) {
     p.draft_year = draftYears.get(p.player_id) ?? null
@@ -264,7 +272,7 @@ async function buildRollingGrid(
     url.searchParams.set('per_page', '100')
     if (postseason) url.searchParams.set('postseason', 'true')
     if (cursor != null) url.searchParams.set('cursor', String(cursor))
-    const res = await fetch(url.toString(), { headers: { Authorization: apiKey } })
+    const res = await bdlFetch(url.toString(), apiKey)
     if (!res.ok) break
     const json = await res.json()
     allStats.push(...((json.data ?? []) as (RawStat & { game_date?: string })[]))
@@ -353,8 +361,14 @@ async function buildRollingGrid(
   // Enrich with draft years + salaries
   const ids = qualified.map(p => p.player_id)
   const [draftYears, salaries] = await Promise.all([
-    fetchDraftYears(ids).catch(() => new Map<number, number | null>()),
-    fetchSalaries(ids).catch(() => new Map<number, number | null>()),
+    fetchDraftYears(ids).catch((err) => {
+      if (err instanceof BdlRateLimitError) throw err
+      return new Map<number, number | null>()
+    }),
+    fetchSalaries(ids).catch((err) => {
+      if (err instanceof BdlRateLimitError) throw err
+      return new Map<number, number | null>()
+    }),
   ])
   for (const p of qualified) {
     p.draft_year = draftYears.get(p.player_id) ?? null
@@ -444,6 +458,8 @@ export async function GET(request: Request) {
     const grid = await cached(cacheKey, TTL.SHORT, () => buildRollingGrid(season, start, end))
     return NextResponse.json(grid, { headers: cacheHeaders(TTL.SHORT) })
   } catch (error) {
+    const rateLimit = rateLimitResponse(error)
+    if (rateLimit) return rateLimit
     console.error('Player grid error:', error)
     return NextResponse.json({ error: 'Failed to fetch player grid' }, { status: 500 })
   }
