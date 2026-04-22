@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import { formatGameStatus, localDateString, parseLocalDate } from '@/lib/utils'
 
 interface Game {
   id: number
@@ -29,8 +30,8 @@ interface Game {
 }
 
 function formatDate(dateStr: string) {
-  const d = new Date(dateStr)
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  const date = parseLocalDate(dateStr) ?? new Date(dateStr)
+  return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
 interface TeamSelection {
@@ -48,9 +49,7 @@ export function Scoreboard({ onSelectTeam }: { onSelectTeam?: (team: TeamSelecti
     const start = new Date()
     start.setDate(start.getDate() - 3)
 
-    const fmt = (d: Date) => d.toISOString().split('T')[0]
-
-    fetch(`/api/nba/games?start=${fmt(start)}&end=${fmt(end)}`)
+    fetch(`/api/nba/games?start=${localDateString(start)}&end=${localDateString(end)}`)
       .then(res => {
         if (!res.ok) throw new Error('Failed to load')
         return res.json()
@@ -126,7 +125,7 @@ function GameCard({ game, onSelectTeam }: { game: Game; onSelectTeam?: (team: Te
             ? 'bg-[#1e1e2a] text-[#8a8a94]'
             : 'bg-emerald-500/20 text-emerald-400'
         }`}>
-          {game.status}
+          {formatGameStatus(game.status)}
         </span>
         {game.postseason && (
           <span className="font-mono text-xs text-[#fbbf24]">Playoffs</span>

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { MultiStatTrendChart, STAT_COLORS } from './StatChart'
 import { Headshot } from './Headshot'
 import { SALARY_CAP_USD } from '@/lib/constants'
+import { parseLocalDate } from '@/lib/utils'
 import { useWatchlist } from '@/hooks/useWatchlist'
 
 interface PlayerBio {
@@ -242,7 +243,7 @@ export function PlayerProfile({
   // Filter games based on selected window
   const now = new Date()
   const filteredGames = games.filter(g => {
-    const d = new Date(g.game.date)
+    const d = parseLocalDate(g.game.date) ?? new Date(g.game.date)
     if (gameFilter === 'last3') return false // handled by slice below
     if (gameFilter === 'lastWeek') {
       const cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - 7)
@@ -263,7 +264,7 @@ export function PlayerProfile({
   // Build multi-stat trend data from game log (reversed so oldest first)
   const reversedGames = [...displayGames].reverse()
   const trendLabels = reversedGames.map(g =>
-    new Date(g.game.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    (parseLocalDate(g.game.date) ?? new Date(g.game.date)).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   )
 
   const getStatValue = (g: GameStat, key: string): number => {
@@ -759,7 +760,7 @@ export function PlayerProfile({
                   return (
                     <tr key={g.id} className="border-b border-[#1e1e2a] last:border-0 hover:bg-[#111118] transition-colors">
                       <td className="px-3 py-2.5 font-mono text-xs text-[#8a8a94] whitespace-nowrap">
-                        {new Date(g.game.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        {(parseLocalDate(g.game.date) ?? new Date(g.game.date)).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </td>
                       <td className="px-3 py-2.5 font-mono text-xs whitespace-nowrap">
                         <span className={won ? 'text-emerald-400' : 'text-red-400'}>

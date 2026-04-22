@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { formatGameStatus, isGameLive, localDateString } from '@/lib/utils'
 
 interface Game {
   id: number
@@ -12,19 +13,8 @@ interface Game {
   visitor_team_score: number
 }
 
-function fmt(d: Date): string {
-  return d.toISOString().split('T')[0]
-}
-
-function isLive(status: string): boolean {
-  return status !== 'Final' && status !== '' && !/^\d{4}/.test(status)
-}
-
-function formatStatus(status: string): string {
-  if (status === 'Final') return 'FINAL'
-  if (status === '' || /^\d{1,2}:\d{2}/.test(status)) return status || 'TBD'
-  return status
-}
+const isLive = isGameLive
+const formatStatus = formatGameStatus
 
 export function ScoresDrawer() {
   const [open, setOpen] = useState(false)
@@ -39,8 +29,8 @@ export function ScoresDrawer() {
       yesterday.setDate(yesterday.getDate() - 1)
 
       const [todayRes, yesterdayRes] = await Promise.all([
-        fetch(`/api/nba/games?start=${fmt(today)}&end=${fmt(today)}`),
-        fetch(`/api/nba/games?start=${fmt(yesterday)}&end=${fmt(yesterday)}`),
+        fetch(`/api/nba/games?start=${localDateString(today)}&end=${localDateString(today)}`),
+        fetch(`/api/nba/games?start=${localDateString(yesterday)}&end=${localDateString(yesterday)}`),
       ])
 
       if (todayRes.ok) {
