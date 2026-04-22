@@ -74,11 +74,54 @@ export interface RawStatRow {
   }
 }
 
+export interface RawGame {
+  id: number
+  date: string
+  season: number
+  postseason: boolean
+  status: string
+  period: number
+  time: string | null
+  home_team: { id: number; abbreviation: string; full_name: string }
+  visitor_team: { id: number; abbreviation: string; full_name: string }
+  home_team_score: number
+  visitor_team_score: number
+  datetime: string | null
+}
+
 export interface FetchStatsOptions {
   startDate: string
   endDate: string
   postseason: boolean
   onPage?: (pageIndex: number, rowCount: number) => void
+}
+
+/**
+ * Fetch all games in a date range (scheduled, live, and final), paginated.
+ */
+export async function fetchGames(
+  startDate: string,
+  endDate: string,
+): Promise<RawGame[]> {
+  const all: RawGame[] = []
+  let cursor: number | null = null
+  for (;;) {
+    const url = new URL(`${BASE_URL}/games`)
+    url.searchParams.set('start_date', startDate)
+    url.searchParams.set('end_date', endDate)
+    url.searchParams.set('per_page', '100')
+    if (cursor != null) url.searchParams.set('cursor', String(cursor))
+    const res = await bdlFetch(url.toString())
+    if (!res.ok) throw new Error(`BDL /games returned ${res.status}`)
+    const json = (await res.json()) as {
+      data: RawGame[]
+      meta: { next_cursor: number | null }
+    }
+    all.push(...json.data)
+    cursor = json.meta?.next_cursor ?? null
+    if (cursor == null) break
+  }
+  return all
 }
 
 /**

@@ -147,5 +147,13 @@ service cloud.firestore {
       allow read: if isWriter() || isAdmin();
       allow write: if false;
     }
+
+    // /games/{gameId} — public scoreboard data.
+    // - Anyone can read (drives the Scores drawer via onSnapshot)
+    // - Writes come from the Railway poller (Admin SDK bypasses rules)
+    match /games/{gameId} {
+      allow read: if true;
+      allow write: if false;
+    }
   }
 }
