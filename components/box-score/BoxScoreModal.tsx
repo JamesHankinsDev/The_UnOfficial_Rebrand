@@ -158,21 +158,44 @@ export function BoxScoreModal({ gameId, onClose }: BoxScoreModalProps) {
               usually post within a few minutes of the game ending.
             </div>
           ) : (
-            <div className="mt-6 space-y-6">
-              <TeamTable
-                teamName={meta.visitorTeam.fullName}
-                abbr={meta.visitorTeam.abbr}
-                score={meta.visitorScore}
-                lines={visitorLines}
-                isWinner={meta.visitorScore > meta.homeScore && meta.status === 'Final'}
-              />
-              <TeamTable
-                teamName={meta.homeTeam.fullName}
-                abbr={meta.homeTeam.abbr}
-                score={meta.homeScore}
-                lines={homeLines}
-                isWinner={meta.homeScore > meta.visitorScore && meta.status === 'Final'}
-              />
+            <div className="mt-6 overflow-x-auto">
+              {/*
+                One shared <table> for both teams keeps the stat columns
+                vertically aligned regardless of how long player names
+                are on either roster. Each team is a <tbody> with a
+                spanning header row for team name + score.
+              */}
+              <table className="w-full font-mono text-xs">
+                <thead>
+                  <tr className="text-[#5a5a64] uppercase tracking-widest text-[10px]">
+                    <th className="text-left py-2 pr-2 w-[38%]">Player</th>
+                    <th className="text-right px-1.5">MIN</th>
+                    <th className="text-right px-1.5">PTS</th>
+                    <th className="text-right px-1.5">REB</th>
+                    <th className="text-right px-1.5">AST</th>
+                    <th className="text-right px-1.5">STL</th>
+                    <th className="text-right px-1.5">BLK</th>
+                    <th className="text-right px-1.5">TO</th>
+                    <th className="text-right px-1.5">FG</th>
+                    <th className="text-right px-1.5">3P</th>
+                    <th className="text-right pl-1.5">FT</th>
+                  </tr>
+                </thead>
+                <TeamSection
+                  teamName={meta.visitorTeam.fullName}
+                  abbr={meta.visitorTeam.abbr}
+                  score={meta.visitorScore}
+                  lines={visitorLines}
+                  isWinner={meta.visitorScore > meta.homeScore && meta.status === 'Final'}
+                />
+                <TeamSection
+                  teamName={meta.homeTeam.fullName}
+                  abbr={meta.homeTeam.abbr}
+                  score={meta.homeScore}
+                  lines={homeLines}
+                  isWinner={meta.homeScore > meta.visitorScore && meta.status === 'Final'}
+                />
+              </table>
             </div>
           )}
         </>
@@ -204,7 +227,7 @@ function GameHeader({ meta }: { meta: GameMeta }) {
   )
 }
 
-function TeamTable({
+function TeamSection({
   teamName,
   abbr,
   score,
@@ -218,75 +241,55 @@ function TeamTable({
   isWinner: boolean
 }) {
   return (
-    <div>
-      <div className="flex items-center justify-between mb-2">
-        <h4
-          className={`font-mono text-sm font-bold tracking-wide ${
-            isWinner ? 'text-[#fbbf24]' : 'text-[#e8e6e3]'
-          }`}
-        >
-          {teamName}{' '}
-          <span className="text-[#5a5a64] text-xs">({abbr})</span>
-        </h4>
-        <span
-          className={`font-mono text-lg tabular-nums ${
-            isWinner ? 'text-[#fbbf24] font-bold' : 'text-[#8a8a94]'
-          }`}
-        >
-          {score}
-        </span>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full font-mono text-xs">
-          <thead>
-            <tr className="text-[#5a5a64] uppercase tracking-widest text-[10px]">
-              <th className="text-left py-2 pr-2">Player</th>
-              <th className="text-right px-1.5">MIN</th>
-              <th className="text-right px-1.5">PTS</th>
-              <th className="text-right px-1.5">REB</th>
-              <th className="text-right px-1.5">AST</th>
-              <th className="text-right px-1.5">STL</th>
-              <th className="text-right px-1.5">BLK</th>
-              <th className="text-right px-1.5">TO</th>
-              <th className="text-right px-1.5">FG</th>
-              <th className="text-right px-1.5">3P</th>
-              <th className="text-right pl-1.5">FT</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((p) => (
-              <tr
-                key={p.playerId}
-                className="border-t border-[#1e1e2a] text-[#8a8a94]"
-              >
-                <td className="py-1.5 pr-2 text-[#e8e6e3]">
-                  {p.firstName} {p.lastName}
-                  {p.position && (
-                    <span className="text-[#5a5a64] ml-1">· {p.position}</span>
-                  )}
-                </td>
-                <td className="text-right tabular-nums px-1.5">{fmtMin(p.min)}</td>
-                <td className="text-right tabular-nums px-1.5 text-[#e8e6e3]">{p.pts}</td>
-                <td className="text-right tabular-nums px-1.5">{p.reb}</td>
-                <td className="text-right tabular-nums px-1.5">{p.ast}</td>
-                <td className="text-right tabular-nums px-1.5">{p.stl}</td>
-                <td className="text-right tabular-nums px-1.5">{p.blk}</td>
-                <td className="text-right tabular-nums px-1.5">{p.turnover}</td>
-                <td className="text-right tabular-nums px-1.5">
-                  {p.fgm}/{p.fga}
-                  <span className="text-[#5a5a64] ml-1">{fmtPct(p.fgm, p.fga)}</span>
-                </td>
-                <td className="text-right tabular-nums px-1.5">
-                  {p.fg3m}/{p.fg3a}
-                </td>
-                <td className="text-right tabular-nums pl-1.5">
-                  {p.ftm}/{p.fta}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <tbody>
+      <tr>
+        <td colSpan={11} className="pt-5 pb-2 border-t border-[#1e1e2a]">
+          <div className="flex items-center justify-between">
+            <h4
+              className={`font-mono text-sm font-bold tracking-wide ${
+                isWinner ? 'text-[#fbbf24]' : 'text-[#e8e6e3]'
+              }`}
+            >
+              {teamName}{' '}
+              <span className="text-[#5a5a64] text-xs">({abbr})</span>
+            </h4>
+            <span
+              className={`font-mono text-lg tabular-nums ${
+                isWinner ? 'text-[#fbbf24] font-bold' : 'text-[#8a8a94]'
+              }`}
+            >
+              {score}
+            </span>
+          </div>
+        </td>
+      </tr>
+      {lines.map((p) => (
+        <tr key={p.playerId} className="border-t border-[#1e1e2a] text-[#8a8a94]">
+          <td className="py-1.5 pr-2 text-[#e8e6e3]">
+            {p.firstName} {p.lastName}
+            {p.position && (
+              <span className="text-[#5a5a64] ml-1">· {p.position}</span>
+            )}
+          </td>
+          <td className="text-right tabular-nums px-1.5">{fmtMin(p.min)}</td>
+          <td className="text-right tabular-nums px-1.5 text-[#e8e6e3]">{p.pts}</td>
+          <td className="text-right tabular-nums px-1.5">{p.reb}</td>
+          <td className="text-right tabular-nums px-1.5">{p.ast}</td>
+          <td className="text-right tabular-nums px-1.5">{p.stl}</td>
+          <td className="text-right tabular-nums px-1.5">{p.blk}</td>
+          <td className="text-right tabular-nums px-1.5">{p.turnover}</td>
+          <td className="text-right tabular-nums px-1.5">
+            {p.fgm}/{p.fga}
+            <span className="text-[#5a5a64] ml-1">{fmtPct(p.fgm, p.fga)}</span>
+          </td>
+          <td className="text-right tabular-nums px-1.5">
+            {p.fg3m}/{p.fg3a}
+          </td>
+          <td className="text-right tabular-nums pl-1.5">
+            {p.ftm}/{p.fta}
+          </td>
+        </tr>
+      ))}
+    </tbody>
   )
 }
