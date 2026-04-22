@@ -155,5 +155,22 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
     }
+
+    // Collection-group read on 'games' subcollections. Required by the
+    // box-score modal which queries
+    //   collectionGroup(db, 'games').where('gameId', '==', X)
+    // to assemble every player's line for a single game from
+    // /player-games/{playerId}/games/{gameId}. Direct-path rules on the
+    // top-level /games/{gameId} or a nested /player-games/.../games/
+    // path do NOT authorize collection-group queries — only this {path=**}
+    // wildcard does.
+    //
+    // Heads up: this rule also matches future 'games' subcollections
+    // anywhere in the tree. If a new one gets added, double-check it
+    // should be publicly readable; if not, tighten with a more specific
+    // rule above this one.
+    match /{path=**}/games/{gameId} {
+      allow read: if true;
+    }
   }
 }

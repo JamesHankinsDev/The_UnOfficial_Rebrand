@@ -99,8 +99,21 @@ export function BoxScoreModal({ gameId, onClose }: BoxScoreModalProps) {
         setLoading(false)
       } catch (err) {
         if (cancelled) return
+        // Surface the underlying code (e.g. permission-denied, failed-
+        // precondition=missing-index) in the console — much more
+        // actionable than the generic "couldn't load" the user sees.
         console.warn('[box-score] load failed:', err)
-        setError('Couldn’t load box score')
+        const code =
+          err && typeof err === 'object' && 'code' in err
+            ? String((err as { code: unknown }).code)
+            : null
+        if (code === 'permission-denied') {
+          setError('Box score access denied — rules may need to be deployed.')
+        } else if (code === 'failed-precondition') {
+          setError('Box score index still building — try again in a minute.')
+        } else {
+          setError('Couldn’t load box score')
+        }
         setLoading(false)
       }
     })()
