@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
+import { BoxScoreProvider } from "@/components/box-score/BoxScoreContext";
 import { CartDrawer } from "@/components/merch/CartDrawer";
 import { Toaster } from "react-hot-toast";
 import { OrganizationJsonLd, WebSiteJsonLd } from "@/components/seo/JsonLd";
@@ -93,27 +94,29 @@ export default function RootLayout({
         <WebSiteJsonLd baseUrl={baseUrl} />
         <AuthProvider>
           <CartProvider>
-            {children}
-            <CartDrawer />
-            <Analytics />
-            <Toaster
-              position="bottom-right"
-              toastOptions={{
-                style: {
-                  background: "#111118",
-                  color: "#e8e6e3",
-                  border: "1px solid #1e1e2a",
-                  fontFamily: "Space Mono, monospace",
-                  fontSize: "13px",
-                },
-                success: {
-                  iconTheme: { primary: "#fbbf24", secondary: "#0a0a0f" },
-                },
-                error: {
-                  iconTheme: { primary: "#ef4444", secondary: "#0a0a0f" },
-                },
-              }}
-            />
+            <BoxScoreProvider>
+              {children}
+              <CartDrawer />
+              <Analytics />
+              <Toaster
+                position="bottom-right"
+                toastOptions={{
+                  style: {
+                    background: "#111118",
+                    color: "#e8e6e3",
+                    border: "1px solid #1e1e2a",
+                    fontFamily: "Space Mono, monospace",
+                    fontSize: "13px",
+                  },
+                  success: {
+                    iconTheme: { primary: "#fbbf24", secondary: "#0a0a0f" },
+                  },
+                  error: {
+                    iconTheme: { primary: "#ef4444", secondary: "#0a0a0f" },
+                  },
+                }}
+              />
+            </BoxScoreProvider>
           </CartProvider>
         </AuthProvider>
       </body>

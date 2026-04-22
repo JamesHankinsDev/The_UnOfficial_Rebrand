@@ -8,6 +8,7 @@ import type {
   SeriesLeaderRow,
 } from '@/app/api/nba/playoffs/[seriesId]/route'
 import { PlayerHoverRoot } from '@/components/player/PlayerHoverRoot'
+import { useBoxScore } from '@/components/box-score/BoxScoreContext'
 
 const ROUND_LABELS: Record<number, string> = {
   1: 'First Round',
@@ -132,11 +133,30 @@ export function SeriesDetail({ seriesId }: { seriesId: string }) {
 }
 
 function GameRow({ game, index }: { game: SeriesGameRow; index: number }) {
+  const { openBoxScore } = useBoxScore()
   const homeWon = game.winner === 'home'
   const visitorWon = game.winner === 'visitor'
   const dateLabel = formatGameDate(game.date)
+  const clickable = game.isFinal
   return (
-    <div className="bg-[#111118] border border-[#1e1e2a] rounded-lg p-4">
+    <div
+      onClick={clickable ? () => openBoxScore(game.id) : undefined}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                openBoxScore(game.id)
+              }
+            }
+          : undefined
+      }
+      className={`bg-[#111118] border border-[#1e1e2a] rounded-lg p-4 transition-colors ${
+        clickable ? 'cursor-pointer hover:border-[#fbbf24]/40' : ''
+      }`}
+    >
       <div className="flex items-center justify-between text-[10px] font-mono tracking-widest uppercase text-[#5a5a64] mb-2">
         <span>Game {index + 1}</span>
         <span>{dateLabel}</span>

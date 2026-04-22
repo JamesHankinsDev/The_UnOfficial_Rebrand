@@ -9,6 +9,7 @@ import {
   where,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { useBoxScore } from '@/components/box-score/BoxScoreContext'
 import { formatGameStatus, isGameLive, localDateString, parseLocalDate } from '@/lib/utils'
 
 interface GameDoc {
@@ -213,19 +214,34 @@ export function ScoresDrawer() {
 }
 
 function GameCard({ game }: { game: GameDoc }) {
+  const { openBoxScore } = useBoxScore()
   const live = isGameLive(game.status)
   const final = game.status === 'Final'
   const homeWon = final && game.homeScore > game.visitorScore
   const visitorWon = final && game.visitorScore > game.homeScore
   const hasScore = game.homeScore + game.visitorScore > 0
+  const clickable = final
 
   return (
     <div
-      className={`rounded-lg border p-3 ${
+      onClick={clickable ? () => openBoxScore(game.gameId) : undefined}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                openBoxScore(game.gameId)
+              }
+            }
+          : undefined
+      }
+      className={`rounded-lg border p-3 transition-colors ${
         live
           ? 'border-green-500/40 bg-green-500/5'
           : 'border-[#1e1e2a] bg-[#111118]'
-      }`}
+      } ${clickable ? 'cursor-pointer hover:border-[#fbbf24]/40' : ''}`}
     >
       <div className="flex items-center justify-between mb-2">
         <span
