@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/lineups/lock",
       "schedule": "10 8 * * 1"
+    },
+    {
+      "path": "/api/cron/salaries/snapshot",
+      "schedule": "0 9 * * *"
     }
   ]
 }

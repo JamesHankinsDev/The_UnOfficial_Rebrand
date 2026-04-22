@@ -3,6 +3,7 @@ import { getApiKey, CURRENT_SEASON, SALARY_CAP_USD, getTeamsMap } from '@/lib/ba
 import { cached, cacheHeaders, TTL } from '@/lib/api-cache'
 import { bdlFetch, BdlRateLimitError, rateLimitResponse } from '@/lib/bdl-fetch'
 import { getNbaPersonIdMap, normalizePlayerName } from '@/lib/nba-persons'
+import { readSalaries } from '@/lib/salary-snapshot'
 
 const BASE_URL = 'https://api.balldontlie.io/v1'
 const BASE_URL_NBA = 'https://api.balldontlie.io/nba/v1'
@@ -65,41 +66,68 @@ async function fetchDraftYears(playerIds: number[]): Promise<Map<number, number 
   return map
 }
 
-async function fetchSalaries(playerIds: number[]): Promise<Map<number, number | null>> {
-  const apiKey = getApiKey()
-  const map = new Map<number, number | null>()
+async function fetchSalaryFromBdl(
+  playerId: number,
+  apiKey: string,
+): Promise<number | null> {
+  return cached(`contract-${playerId}`, TTL.DAY, async () => {
+    try {
+      const res = await bdlFetch(
+        `${BASE_URL_NBA}/contracts/players?player_id=${playerId}&per_page=100`,
+        apiKey,
+      )
+      if (!res.ok) return null
+      const data = await res.json()
+      const records: Record<string, number>[] = data.data ?? []
+      if (!records.length) return null
+      const current =
+        records.find((r) => r.season === CURRENT_SEASON) ??
+        records[records.length - 1]
+      return (current.base_salary ?? current.cap_hit ?? null) as number | null
+    } catch (err) {
+      // Re-throw rate limits so the grid request surfaces 429 to the
+      // client instead of silently shipping blank salaries.
+      if (err instanceof BdlRateLimitError) throw err
+      return null
+    }
+  })
+}
 
-  // Fetch in batches to avoid too many parallel requests
-  const batchSize = 20
-  for (let i = 0; i < playerIds.length; i += batchSize) {
-    const batch = playerIds.slice(i, i + batchSize)
-    const results = await Promise.all(
-      batch.map((id) =>
-        cached(`contract-${id}`, TTL.DAY, async () => {
-          try {
-            const res = await bdlFetch(
-              `${BASE_URL_NBA}/contracts/players?player_id=${id}&per_page=100`,
-              apiKey,
-            )
-            if (!res.ok) return { player_id: id, salary: null as number | null }
-            const data = await res.json()
-            const records: Record<string, number>[] = data.data ?? []
-            if (!records.length) return { player_id: id, salary: null as number | null }
-            const current = records.find(r => r.season === CURRENT_SEASON) ?? records[records.length - 1]
-            const salary = current.base_salary ?? current.cap_hit ?? null
-            return { player_id: id, salary: salary as number | null }
-          } catch (err) {
-            // Re-throw rate limits so the grid request surfaces 429 to
-            // the client instead of silently shipping blank salaries.
-            if (err instanceof BdlRateLimitError) throw err
-            return { player_id: id, salary: null as number | null }
-          }
-        }),
-      ),
-    )
-    for (const r of results) map.set(r.player_id, r.salary)
+/**
+ * Read salaries with Firestore as the primary source (populated by the
+ * daily /api/cron/salaries/snapshot job). Only falls back to BDL for
+ * player IDs that aren't in the snapshot yet — new players, mid-season
+ * additions, or before the first cron run.
+ */
+async function fetchSalaries(
+  playerIds: number[],
+): Promise<Map<number, number | null>> {
+  const map = new Map<number, number | null>()
+  if (playerIds.length === 0) return map
+
+  const snapshot = await readSalaries(playerIds).catch((err) => {
+    console.warn('[grid] salary snapshot read failed, falling back to BDL:', err)
+    return new Map<number, never>()
+  })
+  for (const [id, doc] of snapshot) {
+    map.set(id, doc.salary)
   }
 
+  const missing = playerIds.filter((id) => !map.has(id))
+  if (missing.length === 0) return map
+
+  const apiKey = getApiKey()
+  const BATCH = 20
+  for (let i = 0; i < missing.length; i += BATCH) {
+    const slice = missing.slice(i, i + BATCH)
+    const results = await Promise.all(
+      slice.map(async (id) => ({
+        id,
+        salary: await fetchSalaryFromBdl(id, apiKey),
+      })),
+    )
+    for (const r of results) map.set(r.id, r.salary)
+  }
   return map
 }
 
